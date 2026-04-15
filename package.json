@@ -1,0 +1,28 @@
+{
+  "name": "NexaPos",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev":          "concurrently -n frontend,backend \"pnpm --filter=@nexapos/frontend dev\" \"pnpm --filter=@nexapos/backend dev\"",
+    "dev:frontend": "pnpm --filter=@nexapos/frontend dev",
+    "dev:backend":  "pnpm --filter=@nexapos/backend dev",
+    "dev:worker":   "pnpm --filter=@nexapos/worker dev",
+    "build":        "pnpm -r run build",
+    "deploy:worker": "pnpm --filter=@nexapos/worker run deploy",
+
+    "build:backend":  "pnpm --filter=@nexapos/shared build && pnpm --filter=@nexapos/backend build",
+    "start:backend":  "node apps/backend/dist/index.js",
+
+    "build:frontend": "pnpm --filter=@nexapos/shared build && pnpm --filter=@nexapos/frontend build",
+    "start:frontend": "cd apps/frontend && pnpm start",
+
+    "db:generate": "pnpm --filter=@nexapos/backend db:generate",
+    "db:migrate":  "pnpm --filter=@nexapos/backend db:migrate",
+    "db:push":     "pnpm --filter=@nexapos/backend db:push"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

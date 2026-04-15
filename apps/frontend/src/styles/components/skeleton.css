@@ -1,0 +1,17 @@
+/* ═══════════════════════════════════════════════════════
+   Skeleton — Ocean shimmer loading
+   ═══════════════════════════════════════════════════════ */
+
+.skeleton {
+  @apply rounded-xl;
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-hover) 0%,
+    var(--color-bg-subtle) 40%,
+    var(--color-surface3) 50%,
+    var(--color-bg-subtle) 60%,
+    var(--color-bg-hover) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.8s ease-in-out infinite;
+}

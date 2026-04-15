@@ -1,0 +1,130 @@
+/* ═══════════════════════════════════════════════════════
+   หน้า Select Branch — Ocean Dark Theme
+   ═══════════════════════════════════════════════════════ */
+
+.page-select-branch {
+  @apply flex min-h-screen flex-col items-center justify-center p-6;
+  background-color: var(--color-bg);
+}
+
+.page-select-branch__container {
+  @apply w-full max-w-md space-y-6;
+  animation: fade-up 0.5s var(--ease-out) both;
+}
+
+.page-select-branch__shop-name {
+  @apply text-xs font-semibold uppercase tracking-widest;
+  color: var(--color-primary);
+}
+
+.page-select-branch__title {
+  @apply text-2xl font-extrabold tracking-tight;
+  color: var(--color-text);
+}
+
+.page-select-branch__list {
+  @apply space-y-3;
+}
+
+.page-select-branch__error {
+  @apply rounded-xl px-4 py-3 text-sm font-medium;
+  background-color: var(--color-error-bg);
+  color: var(--color-text-error);
+  border: 1px solid var(--color-error-border);
+  animation: shake 0.4s var(--ease-out);
+}
+
+.page-select-branch__empty {
+  @apply text-center py-12 text-sm;
+  color: var(--color-text-muted);
+}
+.page-select-branch__empty::before {
+  content: '🏬';
+  display: block;
+  font-size: 2.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.page-select-branch__back {
+  @apply inline-flex items-center gap-1.5 text-sm font-semibold;
+  color: var(--color-primary);
+  transition: all var(--duration-fast) var(--ease-out);
+}
+.page-select-branch__back:hover {
+  color: var(--color-primary-hover);
+  transform: translateX(-2px);
+}
+
+/* Loading / Invalid */
+.page-select-branch__invalid {
+  @apply flex min-h-screen items-center justify-center;
+  background-color: var(--color-bg);
+}
+
+.page-select-branch__invalid-text {
+  @apply text-sm;
+  color: var(--color-text-muted);
+}
+
+/* ── Admin dual-action branch card ─────────────────── */
+.page-select-branch__branch-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 1.1rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  transition: border-color 0.18s ease;
+}
+.page-select-branch__branch-card:hover {
+  border-color: var(--color-primary);
+}
+
+.page-select-branch__branch-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-text);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.page-select-branch__branch-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.page-select-branch__btn-pos,
+.page-select-branch__btn-admin {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  text-decoration: none;
+}
+.page-select-branch__btn-pos:hover,
+.page-select-branch__btn-admin:hover {
+  opacity: 0.82;
+  transform: translateY(-1px);
+}
+
+.page-select-branch__btn-pos {
+  background: var(--color-primary);
+  color: var(--color-bg);
+}
+
+.page-select-branch__btn-admin {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+}

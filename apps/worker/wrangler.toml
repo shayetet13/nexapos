@@ -1,0 +1,24 @@
+name               = "pos-cloud-worker"
+main               = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# ── Custom domain ────────────────────────────────────────────────────
+# api.nexapos.io → Worker (registered via CF API: Workers Domains)
+# workers.dev is disabled — all traffic goes through nexapos.io domain
+workers_dev = false
+
+# ── KV namespace ─────────────────────────────────────────────────────
+[[kv_namespaces]]
+binding    = "CACHE"
+id         = "e94316d1e7424f979923f10cbfa6d8f8"
+preview_id = "24cf5853e39e46209bb4abcae501a669"
+
+# ── Non-secret vars ──────────────────────────────────────────────────
+[vars]
+ENVIRONMENT = "production"
+
+# ── Secrets (set via: wrangler secret put <NAME>) ────────────────────
+# INTERNAL_TOKEN  — shared secret with Fastify backend
+# ORIGIN_URL      — Fastify backend public URL
+# FRONTEND_URL    — Next.js frontend URL (for CORS)

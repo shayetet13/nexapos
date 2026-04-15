@@ -1,0 +1,82 @@
+/* ═══════════════════════════════════════════════════════
+   Cards — Ocean Dark Theme
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Select card (shop / branch) ── */
+.card-select {
+  @apply block rounded-2xl border px-5 py-4 text-left font-semibold;
+  border-color: var(--color-border);
+  background-color: var(--color-bg-card);
+  color: var(--color-text);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--duration-normal) var(--ease-out);
+  position: relative;
+  overflow: hidden;
+}
+.card-select::after {
+  content: '\203A';
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%) translateX(0);
+  font-size: 1.25rem;
+  color: var(--color-text-subtle);
+  transition: all var(--duration-normal) var(--ease-out);
+  opacity: 0;
+}
+.card-select:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-md), var(--shadow-glow-cyan);
+  transform: translateY(-2px);
+}
+.card-select:hover::after {
+  opacity: 1;
+  transform: translateY(-50%) translateX(4px);
+  color: var(--color-primary);
+}
+.card-select:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ── Product card ── */
+.card-product {
+  @apply rounded-2xl border p-4 text-left;
+  border-color: var(--color-border);
+  background-color: var(--color-bg-card);
+  color: var(--color-text);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--duration-normal) var(--ease-out);
+}
+.card-product:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-md), var(--shadow-glow-cyan);
+  transform: translateY(-1px);
+}
+
+/* ── Stat card (dashboard) ── */
+.card-stat {
+  @apply rounded-2xl border p-5 flex flex-col gap-1;
+  border-color: var(--color-border);
+  background-color: var(--color-bg-card);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--duration-normal) var(--ease-out);
+}
+.card-stat:hover {
+  box-shadow: var(--shadow-md), var(--shadow-glow-cyan);
+  transform: translateY(-1px);
+}
+.card-stat__label {
+  @apply text-xs font-semibold uppercase;
+  color: var(--color-text-subtle);
+  letter-spacing: var(--tracking-wider);
+}
+.card-stat__value {
+  @apply text-2xl font-bold;
+  color: var(--color-text);
+  letter-spacing: var(--tracking-tight);
+}
+.card-stat__meta {
+  @apply text-xs font-medium;
+  color: var(--color-text-muted);
+}

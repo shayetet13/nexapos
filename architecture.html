@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NexaPos - Architecture Overview</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --surface: #121a2e;
+      --surface-2: #1a2440;
+      --border: #2e3d63;
+      --text: #eaf0ff;
+      --muted: #a8b3d4;
+      --accent: #63a4ff;
+      --ok: #35d07f;
+      --warn: #ffb020;
+      --danger: #ff6b6b;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: Inter, Segoe UI, Tahoma, sans-serif;
+      background: radial-gradient(circle at top right, #152a55, var(--bg) 45%);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .hero, .card {
+      background: color-mix(in srgb, var(--surface) 92%, black);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.22);
+      margin-bottom: 18px;
+    }
+
+    h1, h2, h3 {
+      margin-top: 0;
+      letter-spacing: 0.2px;
+    }
+
+    h1 { font-size: 2rem; margin-bottom: 8px; }
+    h2 {
+      margin-top: 28px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+      color: #cfe1ff;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: 0.95rem;
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .tag {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: #d8e6ff;
+      font-size: 0.8rem;
+      padding: 4px 10px;
+      border-radius: 999px;
+      display: inline-block;
+      margin: 4px 6px 0 0;
+    }
+
+    .toc ul {
+      margin: 8px 0 0;
+      padding-left: 18px;
+      columns: 2;
+      column-gap: 24px;
+    }
+
+    .toc li { margin-bottom: 6px; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.92rem;
+      margin: 10px 0 16px;
+      overflow: hidden;
+      border-radius: 10px;
+    }
+
+    th, td {
+      border: 1px solid var(--border);
+      padding: 9px 10px;
+      vertical-align: top;
+      text-align: left;
+    }
+
+    th {
+      background: #1a2a4f;
+      color: #e3edff;
+      font-weight: 600;
+    }
+
+    .muted { color: var(--muted); }
+    .ok { color: var(--ok); }
+    .warn { color: var(--warn); }
+    .danger { color: var(--danger); }
+
+    code {
+      background: #10192f;
+      border: 1px solid #2a3b64;
+      border-radius: 6px;
+      padding: 2px 6px;
+      font-size: 0.88em;
+    }
+
+    pre {
+      background: #0a1327;
+      border: 1px solid #2a3b64;
+      border-radius: 10px;
+      padding: 14px;
+      overflow-x: auto;
+      font-size: 0.88rem;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 14px;
+    }
+
+    .footer {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      text-align: center;
+    }
+
+    @media (max-width: 860px) {
+      .toc ul { columns: 1; }
+      h1 { font-size: 1.6rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <section class="hero">
+      <h1>NexaPos - Architecture Overview</h1>
+      <div class="meta">
+        <span><strong>Version:</strong> 1.0</span>
+        <span><strong>Updated:</strong> 2026-04</span>
+        <span><strong>Stack:</strong> Next.js 15 + Fastify 5 + PostgreSQL + Supabase + Cloudflare Workers</span>
+      </div>
+      <div style="margin-top:10px;">
+        <span class="tag">Multi-tenant (shop_id)</span>
+        <span class="tag">Supabase Auth + Custom JWT</span>
+        <span class="tag">Drizzle + Zod</span>
+        <span class="tag">RLS + Audit Logs</span>
+      </div>
+    </section>
+
+    <section class="card toc" id="toc">
+      <h2 style="margin-top:0">สารบัญ</h2>
+      <ul>
+        <li><a href="#stack-overview">1) Stack Overview</a></li>
+        <li><a href="#monorepo-structure">2) Monorepo Structure</a></li>
+        <li><a href="#database-schema">3) Database Schema</a></li>
+        <li><a href="#api-routes">4) API Routes Reference</a></li>
+        <li><a href="#system-flows">5) System Flows</a></li>
+        <li><a href="#middleware-stack">6) Middleware Stack</a></li>
+        <li><a href="#role-permissions">7) Role Permissions</a></li>
+        <li><a href="#realtime">8) Real-time Broadcasting</a></li>
+        <li><a href="#theme">9) Theme System</a></li>
+        <li><a href="#security">10) Security Standards</a></li>
+        <li><a href="#cron">11) Cron Jobs</a></li>
+      </ul>
+    </section>
+
+    <section class="card" id="stack-overview">
+      <h2>1) Stack Overview</h2>
+      <table>
+        <thead><tr><th>Layer</th><th>Technology</th><th>Version</th></tr></thead>
+        <tbody>
+          <tr><td>Frontend</td><td>Next.js App Router, React 19</td><td>15.x</td></tr>
+          <tr><td>Styling</td><td>Tailwind CSS + BEM utility files</td><td>3.x</td></tr>
+          <tr><td>Backend</td><td>Fastify + TypeScript</td><td>5.x</td></tr>
+          <tr><td>ORM</td><td>Drizzle ORM</td><td>Latest</td></tr>
+          <tr><td>Database</td><td>PostgreSQL via Supabase</td><td>15+</td></tr>
+          <tr><td>Auth</td><td>Supabase Auth + custom JWT claims</td><td>-</td></tr>
+          <tr><td>Validation</td><td>Zod (frontend + backend)</td><td>3.x</td></tr>
+          <tr><td>Realtime</td><td>@fastify/websocket</td><td>-</td></tr>
+          <tr><td>Edge</td><td>Cloudflare Workers proxy layer</td><td>-</td></tr>
+          <tr><td>Monorepo</td><td>pnpm workspaces</td><td>9.x</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card" id="monorepo-structure">
+      <h2>2) Monorepo Structure</h2>
+      <pre>NexaPos/
+├── apps/
+│   ├── frontend/        # Next.js 15 (port 3000)
+│   │   └── src/
+│   │       ├── app/
+│   │       ├── components/
+│   │       ├── styles/
+│   │       ├── lib/
+│   │       └── hooks/
+│   ├── backend/         # Fastify 5 (port 3001)
+│   │   └── src/
+│   │       ├── routes/
+│   │       ├── services/
+│   │       ├── repositories/
+│   │       ├── middleware/
+│   │       ├── lib/
+│   │       └── db/
+│   └── worker/          # Cloudflare Worker
+└── packages/
+    └── shared/          # shared types + zod schemas</pre>
+      <p class="muted">Workspace packages: <code>@nexapos/frontend</code>, <code>@nexapos/backend</code>, <code>@nexapos/worker</code>, <code>@nexapos/shared</code></p>
+    </section>
+
+    <section class="card" id="database-schema">
+      <h2>3) Database Schema (สรุปครบ)</h2>
+      <p>ระบบใช้ PostgreSQL + Drizzle โดยยึด multi-tenant isolation ผ่าน <code>shop_id</code> ทุก domain table และ RLS policy.</p>
+
+      <div class="grid-2">
+        <div>
+          <h3>Identity & Shops</h3>
+          <ul>
+            <li><code>shops</code>, <code>branches</code>, <code>users</code>, <code>user_shop_roles</code></li>
+            <li>Role: <code>owner</code>, <code>manager</code>, <code>cashier</code>, <code>viewer</code></li>
+            <li>PromptPay field เก็บแบบ <strong>AES-256-GCM encrypted</strong></li>
+          </ul>
+
+          <h3>Products & Stock</h3>
+          <ul>
+            <li><code>products</code>, <code>branch_stock</code>, <code>stock_transactions</code></li>
+            <li><code>shop_units</code>, <code>consumables</code>, <code>product_consumables</code> (BOM)</li>
+          </ul>
+
+          <h3>Orders</h3>
+          <ul>
+            <li><code>orders</code>, <code>order_items</code> พร้อม refund fields + receipt token</li>
+            <li>Index สำคัญ: <code>(shop_id, order_number)</code> UNIQUE</li>
+          </ul>
+        </div>
+
+        <div>
+          <h3>Customer & Marketing</h3>
+          <ul>
+            <li><code>customers</code>, <code>promotions</code>, <code>combos</code>, <code>combo_items</code></li>
+            <li>membership: points / tier / birthday benefit</li>
+          </ul>
+
+          <h3>Platform & Operations</h3>
+          <ul>
+            <li><code>subscriptions</code>, <code>staff_qr_tokens</code>, <code>staff_checkins</code></li>
+            <li><code>qr_device_tokens</code>, <code>qr_login_sessions</code></li>
+            <li><code>withdrawal_requests</code>, <code>shop_notifications</code></li>
+          </ul>
+
+          <h3>Audit & Analytics</h3>
+          <ul>
+            <li><code>shop_sales_snapshots</code>, <code>events</code>, <code>logs</code></li>
+            <li><code>audit_logs</code> (append-only), <code>payment_logs</code>, <code>app_settings</code></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" id="api-routes">
+      <h2>4) API Routes Reference</h2>
+      <p>Base path: <code>/api/v1</code> ใช้ JWT Bearer เป็นหลัก และบาง endpoint รองรับ public access ตามหน้าที่.</p>
+      <table>
+        <thead><tr><th>Domain</th><th>ตัวอย่าง Endpoint</th><th>Auth</th></tr></thead>
+        <tbody>
+          <tr><td>Auth</td><td><code>POST /auth/register</code></td><td>Public + rate limit</td></tr>
+          <tr><td>Shop</td><td><code>GET/PATCH /shops/:shopId/settings</code></td><td>JWT + role guard</td></tr>
+          <tr><td>Products</td><td><code>GET /shops/:shopId/products</code>, <code>PATCH /stock</code></td><td>JWT/Admin</td></tr>
+          <tr><td>Orders</td><td><code>POST /shops/:shopId/orders</code>, <code>/refund/*</code></td><td>Cashier+/Admin</td></tr>
+          <tr><td>Customers</td><td><code>GET/POST/PATCH /shops/:shopId/customers</code></td><td>JWT</td></tr>
+          <tr><td>Reports</td><td><code>GET /shops/:shopId/reports/pnl</code></td><td>Admin + feature gate</td></tr>
+          <tr><td>Promotions</td><td><code>/shops/:shopId/promotions</code>, <code>/combos</code></td><td>Admin</td></tr>
+          <tr><td>Consumables</td><td><code>/shops/:shopId/consumables</code>, <code>/bom</code></td><td>JWT/Admin</td></tr>
+          <tr><td>Units</td><td><code>/shops/:shopId/units</code></td><td>JWT/Admin</td></tr>
+          <tr><td>Subscription</td><td><code>/subscriptions/:shopId</code></td><td>JWT</td></tr>
+          <tr><td>Public</td><td><code>/public/shops/:shopId</code>, <code>/receipts/:receiptToken</code></td><td>Public</td></tr>
+          <tr><td>WebSocket</td><td><code>/ws</code>, <code>/ws-display</code>, <code>/api/v1/ws-qr</code></td><td>Mixed</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card" id="system-flows">
+      <h2>5) System Flows</h2>
+      <h3>Flow A: POS Checkout (Critical Path)</h3>
+      <pre>POS UI -> POST /shops/:shopId/orders
+  -> Zod validate -> stock check -> calculate points/discount/VAT
+  -> DB transaction (orders + order_items)
+  -> deduct stock + BOM consumables
+  -> update customer points/tier
+  -> broadcast ORDER_CREATED/STOCK_UPDATE/CHECKOUT_PAID
+  -> return order summary + receipt token</pre>
+
+      <h3>Flow B: QR Login</h3>
+      <pre>Desktop create QR session -> mobile scan -> session confirm (WS)
+-> backend generate login token/magic link -> desktop verifyOtp -> role-based redirect</pre>
+
+      <h3>Flow C: Customer Display</h3>
+      <pre>POS broadcasts CHECKOUT_CASH/CHECKOUT_QR/CHECKOUT_PAID/CHECKOUT_CLOSE
+-> /ws-display clients render payment state in real-time
+-> reconnect receives last known state</pre>
+
+      <h3>Flow D: Refund + OTP</h3>
+      <pre>Admin requests OTP -> backend issues 6-digit token + expiry
+-> send via Telegram -> admin confirms OTP
+-> set order status refunded + create logs/notifications</pre>
+    </section>
+
+    <section class="card" id="middleware-stack">
+      <h2>6) Middleware Stack</h2>
+      <pre>Request
+ -> Rate Limit
+ -> CORS
+ -> WebSocket plugin
+ -> Internal Token check (worker -> backend)
+ -> JWT Auth (per-route)
+ -> Role Guard (owner/admin/shop)
+ -> Feature Gate (subscription)
+ -> Route Handler
+ -> Audit logging hook (onResponse)</pre>
+    </section>
+
+    <section class="card" id="role-permissions">
+      <h2>7) Role Permissions</h2>
+      <table>
+        <thead><tr><th>Permission</th><th>owner</th><th>manager</th><th>cashier</th><th>viewer</th></tr></thead>
+        <tbody>
+          <tr><td>Create order</td><td class="ok">Yes</td><td class="ok">Yes</td><td class="ok">Yes</td><td class="danger">No</td></tr>
+          <tr><td>Manage products/stock</td><td class="ok">Yes</td><td class="ok">Yes</td><td class="danger">No</td><td class="danger">No</td></tr>
+          <tr><td>Approve refund/withdrawal</td><td class="ok">Yes</td><td class="ok">Yes</td><td class="danger">No</td><td class="danger">No</td></tr>
+          <tr><td>Manage staff/settings</td><td class="ok">Yes</td><td class="danger">No</td><td class="danger">No</td><td class="danger">No</td></tr>
+          <tr><td>View orders</td><td class="ok">Yes</td><td class="ok">Yes</td><td class="ok">Yes</td><td class="ok">Yes</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card" id="realtime">
+      <h2>8) Real-time Broadcasting</h2>
+      <table>
+        <thead><tr><th>Event</th><th>Sender</th><th>Receiver</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><code>ORDER_CREATED</code></td><td>Backend</td><td>POS /ws</td><td>Refresh orders and stats</td></tr>
+          <tr><td><code>STOCK_UPDATE</code></td><td>Backend</td><td>POS /ws</td><td>Sync stock status</td></tr>
+          <tr><td><code>CHECKOUT_CASH</code></td><td>POS</td><td>Display /ws-display</td><td>Show cash payment screen</td></tr>
+          <tr><td><code>CHECKOUT_QR</code></td><td>POS</td><td>Display /ws-display</td><td>Show PromptPay QR</td></tr>
+          <tr><td><code>CHECKOUT_PAID</code></td><td>Backend</td><td>Display /ws-display</td><td>Show payment success</td></tr>
+          <tr><td><code>CHECKOUT_CLOSE</code></td><td>POS</td><td>Display /ws-display</td><td>Back to idle state</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card" id="theme">
+      <h2>9) Theme System</h2>
+      <ul>
+        <li>Theme หลัก: <code>warm</code> (default), <code>light</code>, <code>ocean</code>.</li>
+        <li>กำหนดผ่าน <code>data-theme</code> ที่ <code>&lt;html&gt;</code>.</li>
+        <li>ใช้ inline init script ก่อน hydrate เพื่อลดธีมกระพริบ.</li>
+        <li>อ่านจาก <code>localStorage["nexapos-theme"]</code> และรองรับ OS theme บน mobile.</li>
+      </ul>
+    </section>
+
+    <section class="card" id="security">
+      <h2>10) Security Standards</h2>
+      <table>
+        <thead><tr><th>#</th><th>Standard</th><th>Status</th><th>Implementation</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Authentication</td><td class="ok">Implemented</td><td>Supabase JWT + Bearer (15m/7d)</td></tr>
+          <tr><td>2</td><td>Authorization</td><td class="ok">Implemented</td><td>RLS + role guard by shop</td></tr>
+          <tr><td>3</td><td>API Security</td><td class="ok">Implemented</td><td>X-Internal-Token + webhook validation</td></tr>
+          <tr><td>4</td><td>Encryption</td><td class="ok">Implemented</td><td>AES-256-GCM for sensitive fields</td></tr>
+          <tr><td>5</td><td>Transport</td><td class="ok">Implemented</td><td>HTTPS + HSTS policy</td></tr>
+          <tr><td>6</td><td>Validation</td><td class="ok">Implemented</td><td>Zod validation on inputs</td></tr>
+          <tr><td>7</td><td>SQL Injection</td><td class="ok">Implemented</td><td>Drizzle parameterized queries</td></tr>
+          <tr><td>8</td><td>XSS</td><td class="ok">Implemented</td><td>React escaping + strict CSP</td></tr>
+          <tr><td>9</td><td>CSRF</td><td class="warn">Partial</td><td>SameSite + CSRF token on state changes</td></tr>
+          <tr><td>10</td><td>Rate Limit</td><td class="ok">Implemented</td><td>Global + endpoint-specific limits</td></tr>
+          <tr><td>11</td><td>CORS</td><td class="ok">Implemented</td><td>Strict origin whitelist</td></tr>
+          <tr><td>12</td><td>Secrets</td><td class="ok">Implemented</td><td>Environment variables only</td></tr>
+          <tr><td>13</td><td>Audit</td><td class="ok">Implemented</td><td>Append-only audit logs + retention</td></tr>
+          <tr><td>14</td><td>Session Security</td><td class="warn">In progress</td><td>Concurrent session cap target: 3</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card" id="cron">
+      <h2>11) Cron Jobs</h2>
+      <table>
+        <thead><tr><th>Job</th><th>Schedule (Bangkok)</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><code>startSnapshotCron</code></td><td>Daily 23:00</td><td>Build shop sales snapshots + rank</td></tr>
+          <tr><td><code>startBirthdayCron</code></td><td>Daily morning</td><td>Birthday/member notifications</td></tr>
+          <tr><td><code>startAuditCleanupCron</code></td><td>Sunday 00:01</td><td>Remove audit logs older than 7 days</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>Architecture Notes</h2>
+      <ul>
+        <li>หัวใจของระบบคือ tenant isolation: ทุก query และทุก route ต้องผูกกับ <code>shop_id</code>.</li>
+        <li>Cloudflare Worker เป็น edge gateway ช่วยเรื่อง rate limit, CORS, และ internal token pass-through.</li>
+        <li>Fastify backend แยกเส้นทางชัดเจน: routes → services → repositories → db schema.</li>
+        <li>WebSocket มี 3 ช่องทางหลัก: POS realtime, customer display, และ QR auth flow.</li>
+      </ul>
+    </section>
+
+    <p class="footer">Document generated from current architecture documentation and aligned for direct sharing in HTML format.</p>
+  </div>
+</body>
+</html>

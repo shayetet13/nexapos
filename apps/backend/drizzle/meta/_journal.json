@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1771861335359,
+      "tag": "0000_empty_odin",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1773585361771,
+      "tag": "0011_add_performance_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1773653144218,
+      "tag": "0002_striped_hellion",
+      "breakpoints": true
+    }
+  ]
+}

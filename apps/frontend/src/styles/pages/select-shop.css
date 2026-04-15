@@ -1,0 +1,50 @@
+/* ═══════════════════════════════════════════════════════
+   หน้า Select Shop — Ocean Dark Theme
+   ═══════════════════════════════════════════════════════ */
+
+.page-select-shop {
+  @apply flex min-h-screen flex-col items-center justify-center p-6;
+  background-color: var(--color-bg);
+}
+
+.page-select-shop__container {
+  @apply w-full max-w-md space-y-6;
+  animation: fade-up 0.5s var(--ease-out) both;
+}
+
+.page-select-shop__title {
+  @apply text-2xl font-extrabold tracking-tight;
+  color: var(--color-text);
+}
+
+.page-select-shop__list {
+  @apply space-y-3;
+}
+
+.page-select-shop__error {
+  @apply rounded-xl px-4 py-3 text-sm font-medium;
+  background-color: var(--color-error-bg);
+  color: var(--color-text-error);
+  border: 1px solid var(--color-error-border);
+  animation: shake 0.4s var(--ease-out);
+}
+
+.page-select-shop__empty {
+  @apply text-center py-12 text-sm;
+  color: var(--color-text-muted);
+}
+.page-select-shop__empty::before {
+  content: '🏪';
+  display: block;
+  font-size: 2.5rem;
+  margin-bottom: 0.75rem;
+}
+
+/* Loading state */
+.page-select-shop__skeleton-container {
+  @apply w-full max-w-md space-y-4;
+}
+
+.page-select-shop__skeleton-list {
+  @apply space-y-3;
+}
