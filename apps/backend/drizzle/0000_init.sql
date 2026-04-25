@@ -1,0 +1,3 @@
+-- POS Cloud SaaS - Initial Schema
+-- Run after: pnpm db:push (Drizzle creates tables)
+-- Partitioning & RLS applied separately
