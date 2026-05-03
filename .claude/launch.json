@@ -1,0 +1,20 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "frontend",
+      "runtimeExecutable": "C:\\Windows\\System32\\cmd.exe",
+      "runtimeArgs": ["/c", "node_modules\\.bin\\next.CMD", "dev", "--turbopack"],
+      "cwd": "apps/frontend",
+      "port": 3010,
+      "autoPort": true
+    },
+    {
+      "name": "payment-design",
+      "runtimeExecutable": "C:\\Windows\\System32\\cmd.exe",
+      "runtimeArgs": ["/c", "npx", "--yes", "serve", "-l", "5555", "."],
+      "cwd": ".",
+      "port": 5555
+    }
+  ]
+}

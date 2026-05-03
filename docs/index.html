@@ -1,0 +1,1692 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>NexaPos — Architecture Overview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet"/>
+<style>
+/* ════════════════════════════════════════════════════
+   TOKENS
+════════════════════════════════════════════════════ */
+:root {
+  --bg:        #030b16;
+  --bg1:       #071425;
+  --bg2:       #0b1e38;
+  --bg3:       #0f2546;
+  --cyan:      #00d4ff;
+  --cyan2:     #00a8cc;
+  --cyan3:     #007a99;
+  --teal:      #0dd3bb;
+  --purple:    #7c3aed;
+  --amber:     #f59e0b;
+  --green:     #10b981;
+  --red:       #ef4444;
+  --txt:       #d1e8f8;
+  --txt2:      #7aa8c8;
+  --txt3:      #3d6480;
+  --border:    rgba(0,212,255,0.12);
+  --border2:   rgba(0,212,255,0.25);
+  --glow:      0 0 20px rgba(0,212,255,0.2);
+  --glow2:     0 0 40px rgba(0,212,255,0.15);
+  --ff-head:   'Syne', sans-serif;
+  --ff-mono:   'JetBrains Mono', monospace;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--txt);
+  font-family: var(--ff-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-x: hidden;
+  min-height: 100dvh;
+}
+/* scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg1); }
+::-webkit-scrollbar-thumb { background: var(--cyan3); border-radius: 3px; }
+
+/* ════════════════════════════════════════════════════
+   BLUEPRINT GRID BACKGROUND
+════════════════════════════════════════════════════ */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px),
+    linear-gradient(rgba(0,212,255,0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,0.015) 1px, transparent 1px);
+  background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px;
+}
+body::after {
+  content: '';
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background: radial-gradient(ellipse 80% 50% at 50% -10%,
+    rgba(0,212,255,0.06) 0%, transparent 60%);
+}
+
+/* ════════════════════════════════════════════════════
+   HEADER
+════════════════════════════════════════════════════ */
+.hdr {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(3,11,22,0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 2rem;
+  display: flex; align-items: center; gap: 1.5rem;
+  height: 56px;
+  animation: fadeDown 0.5s ease;
+}
+.hdr__logo {
+  font-family: var(--ff-head);
+  font-weight: 800;
+  font-size: 1.1rem;
+  letter-spacing: 0.05em;
+  color: var(--cyan);
+  text-shadow: 0 0 12px rgba(0,212,255,0.5);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.hdr__logo span { color: var(--txt3); font-weight: 400; }
+.hdr__sep { width: 1px; height: 24px; background: var(--border2); flex-shrink: 0; }
+.hdr__version {
+  font-size: 0.7rem; color: var(--txt3);
+  background: var(--bg2); border: 1px solid var(--border);
+  padding: 2px 8px; border-radius: 20px; flex-shrink: 0;
+}
+.hdr__nav {
+  display: flex; gap: 0.25rem; flex: 1; overflow-x: auto;
+}
+.hdr__nav::-webkit-scrollbar { height: 0; }
+.nav-btn {
+  background: none; border: none; cursor: pointer;
+  font-family: var(--ff-mono); font-size: 0.72rem;
+  color: var(--txt3);
+  padding: 5px 12px; border-radius: 4px;
+  white-space: nowrap;
+  transition: color 0.2s, background 0.2s;
+  position: relative;
+}
+.nav-btn::after {
+  content: attr(data-num);
+  position: absolute; top: 3px; right: 4px;
+  font-size: 0.55rem; color: var(--cyan3);
+}
+.nav-btn:hover { color: var(--txt); background: var(--bg2); }
+.nav-btn.active {
+  color: var(--cyan);
+  background: rgba(0,212,255,0.08);
+  border: 1px solid rgba(0,212,255,0.2);
+}
+.hdr__search {
+  flex-shrink: 0;
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 6px; padding: 5px 10px;
+  display: flex; align-items: center; gap: 6px;
+}
+.hdr__search input {
+  background: none; border: none; outline: none;
+  font-family: var(--ff-mono); font-size: 0.72rem;
+  color: var(--txt); width: 140px;
+}
+.hdr__search input::placeholder { color: var(--txt3); }
+.hdr__search svg { color: var(--txt3); flex-shrink: 0; }
+
+/* ════════════════════════════════════════════════════
+   LAYOUT
+════════════════════════════════════════════════════ */
+.main {
+  position: relative; z-index: 1;
+  max-width: 1400px; margin: 0 auto;
+  padding: 1.5rem 1.5rem 4rem;
+}
+.tab-panel { display: none; animation: fadeIn 0.3s ease; }
+.tab-panel.active { display: block; }
+
+/* ════════════════════════════════════════════════════
+   HERO  (tab 0: stack)
+════════════════════════════════════════════════════ */
+.hero {
+  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  gap: 1rem; margin-bottom: 1.5rem;
+}
+@media (max-width: 900px) { .hero { grid-template-columns: 1fr; } }
+
+.hero-card {
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.25rem 1.5rem;
+  position: relative; overflow: hidden;
+  animation: fadeUp 0.6s ease both;
+}
+.hero-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+  opacity: 0.5;
+}
+.hero-card:nth-child(2) { animation-delay: 0.1s; }
+.hero-card:nth-child(3) { animation-delay: 0.2s; }
+
+.hero-card__label {
+  font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.12em;
+  color: var(--txt3); margin-bottom: 0.5rem;
+}
+.hero-card__title {
+  font-family: var(--ff-head); font-size: 1.6rem; font-weight: 800;
+  color: var(--cyan); line-height: 1.1; margin-bottom: 0.25rem;
+}
+.hero-card__sub { font-size: 0.75rem; color: var(--txt2); }
+
+/* ── Stack table ──────────────────────── */
+.stack-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 0.75rem; margin-bottom: 1.5rem;
+}
+.stack-row {
+  background: var(--bg1); border: 1px solid var(--border);
+  border-radius: 6px; padding: 0.75rem 1rem;
+  display: flex; align-items: center; gap: 0.875rem;
+  animation: fadeUp 0.5s ease both;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.stack-row:hover { border-color: var(--border2); box-shadow: var(--glow); }
+.stack-row__icon {
+  width: 32px; height: 32px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem; flex-shrink: 0;
+}
+.stack-row__layer { font-size: 0.65rem; color: var(--txt3); text-transform: uppercase; letter-spacing: 0.1em; }
+.stack-row__tech { font-weight: 500; color: var(--txt); font-size: 0.82rem; }
+.stack-row__detail { font-size: 0.7rem; color: var(--txt3); }
+
+/* monorepo tree */
+.tree { background: var(--bg1); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem 1.5rem; }
+.tree__title { font-family: var(--ff-head); font-weight: 700; font-size: 0.9rem; color: var(--cyan); margin-bottom: 1rem; }
+.tree pre {
+  color: var(--txt2); line-height: 1.8; font-size: 0.75rem;
+  white-space: pre-wrap;
+}
+.tree .d { color: var(--cyan2); }
+.tree .f { color: var(--txt2); }
+.tree .c { color: var(--txt3); }
+
+/* ════════════════════════════════════════════════════
+   SECTION COMMONS
+════════════════════════════════════════════════════ */
+.section-title {
+  font-family: var(--ff-head); font-size: 0.8rem; font-weight: 700;
+  color: var(--txt3); text-transform: uppercase; letter-spacing: 0.12em;
+  margin: 1.5rem 0 0.875rem;
+  display: flex; align-items: center; gap: 0.5rem;
+}
+.section-title::before {
+  content: ''; display: block; width: 3px; height: 14px;
+  background: var(--cyan); border-radius: 2px;
+}
+.badge {
+  display: inline-flex; align-items: center;
+  font-size: 0.65rem; padding: 1px 7px; border-radius: 20px;
+  font-family: var(--ff-mono);
+}
+.badge--cyan   { background: rgba(0,212,255,0.12); color: var(--cyan); border: 1px solid rgba(0,212,255,0.25); }
+.badge--teal   { background: rgba(13,211,187,0.12); color: var(--teal); border: 1px solid rgba(13,211,187,0.25); }
+.badge--purple { background: rgba(124,58,237,0.15); color: #a78bfa; border: 1px solid rgba(124,58,237,0.3); }
+.badge--amber  { background: rgba(245,158,11,0.12); color: var(--amber); border: 1px solid rgba(245,158,11,0.25); }
+.badge--green  { background: rgba(16,185,129,0.12); color: var(--green); border: 1px solid rgba(16,185,129,0.25); }
+.badge--red    { background: rgba(239,68,68,0.12);  color: var(--red);   border: 1px solid rgba(239,68,68,0.25); }
+.badge--gray   { background: rgba(61,100,128,0.3);  color: var(--txt2);  border: 1px solid var(--border); }
+
+/* generic table */
+.tbl-wrap { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 1rem; }
+table { width: 100%; border-collapse: collapse; }
+th {
+  background: var(--bg2); color: var(--txt3);
+  font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em;
+  padding: 0.5rem 0.875rem; text-align: left;
+  font-weight: 700; white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+}
+td {
+  padding: 0.5rem 0.875rem; font-size: 0.75rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  transition: background 0.15s;
+}
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(0,212,255,0.03); }
+.mono { font-family: var(--ff-mono); }
+.dim { color: var(--txt3); }
+.hi  { color: var(--cyan); font-weight: 500; }
+
+/* ════════════════════════════════════════════════════
+   DB TAB  (tab 1)
+════════════════════════════════════════════════════ */
+.db-groups {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 1rem;
+}
+.db-group {
+  background: var(--bg1); border: 1px solid var(--border);
+  border-radius: 8px; overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.db-group:hover { border-color: var(--border2); box-shadow: var(--glow); }
+.db-group__head {
+  padding: 0.75rem 1rem;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 0.5rem;
+  cursor: pointer; user-select: none;
+}
+.db-group__head-title {
+  font-family: var(--ff-head); font-weight: 700;
+  font-size: 0.82rem; color: var(--txt);
+}
+.db-group__head-count { margin-left: auto; }
+.db-group__body { padding: 0.75rem 1rem; }
+
+.table-card {
+  margin-bottom: 0.875rem; padding-bottom: 0.875rem;
+  border-bottom: 1px solid var(--border);
+}
+.table-card:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+.table-card__name {
+  font-family: var(--ff-mono); font-weight: 700;
+  color: var(--cyan); font-size: 0.8rem; margin-bottom: 0.25rem;
+}
+.table-card__desc { font-size: 0.7rem; color: var(--txt2); margin-bottom: 0.4rem; }
+.col-list { display: flex; flex-wrap: wrap; gap: 4px; }
+.col-pill {
+  font-size: 0.63rem; padding: 2px 7px; border-radius: 4px;
+  background: var(--bg3); border: 1px solid var(--border);
+  color: var(--txt2); font-family: var(--ff-mono);
+}
+.col-pill--pk  { background: rgba(0,212,255,0.1); color: var(--cyan); border-color: rgba(0,212,255,0.2); }
+.col-pill--fk  { background: rgba(13,211,187,0.1); color: var(--teal); border-color: rgba(13,211,187,0.2); }
+.col-pill--enc { background: rgba(245,158,11,0.1); color: var(--amber); border-color: rgba(245,158,11,0.2); }
+.col-pill--json { background: rgba(124,58,237,0.1); color: #a78bfa; border-color: rgba(124,58,237,0.2); }
+
+/* ════════════════════════════════════════════════════
+   PAGES TAB  (tab 2)
+════════════════════════════════════════════════════ */
+.pages-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 0.75rem;
+}
+.page-card {
+  background: var(--bg1); border: 1px solid var(--border);
+  border-radius: 8px; padding: 1rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  cursor: default;
+}
+.page-card:hover { border-color: var(--border2); box-shadow: var(--glow); }
+.page-card__route {
+  font-family: var(--ff-mono); font-weight: 700;
+  color: var(--cyan); font-size: 0.78rem;
+  margin-bottom: 0.35rem;
+}
+.page-card__name {
+  font-family: var(--ff-head); font-weight: 700;
+  color: var(--txt); font-size: 0.95rem;
+  margin-bottom: 0.5rem;
+}
+.page-card__info { display: flex; flex-direction: column; gap: 0.2rem; }
+.page-card__row { display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.7rem; }
+.page-card__key { color: var(--txt3); min-width: 55px; flex-shrink: 0; }
+.page-card__val { color: var(--txt2); font-family: var(--ff-mono); word-break: break-all; }
+.page-card__badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 0.5rem; }
+
+/* components list */
+.comp-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.5rem;
+}
+.comp-row {
+  background: var(--bg1); border: 1px solid var(--border);
+  border-radius: 6px; padding: 0.6rem 0.875rem;
+  display: flex; flex-direction: column; gap: 0.15rem;
+  transition: border-color 0.2s;
+}
+.comp-row:hover { border-color: var(--border2); }
+.comp-row__name { font-weight: 700; color: var(--txt); font-size: 0.8rem; }
+.comp-row__file { font-size: 0.68rem; color: var(--txt3); font-family: var(--ff-mono); }
+.comp-row__desc { font-size: 0.68rem; color: var(--txt2); }
+
+/* ════════════════════════════════════════════════════
+   API TAB  (tab 3)
+════════════════════════════════════════════════════ */
+.api-groups { display: flex; flex-direction: column; gap: 0.75rem; }
+.api-group {
+  background: var(--bg1); border: 1px solid var(--border);
+  border-radius: 8px; overflow: hidden;
+}
+.api-group__head {
+  padding: 0.75rem 1rem;
+  background: var(--bg2); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 0.75rem;
+  cursor: pointer; user-select: none;
+}
+.api-group__prefix {
+  font-family: var(--ff-mono); font-weight: 700;
+  color: var(--cyan); font-size: 0.82rem;
+}
+.api-group__label { color: var(--txt2); font-size: 0.78rem; font-family: var(--ff-head); font-weight: 600; }
+.api-group__body { padding: 0.25rem 0; }
+.api-endpoint {
+  display: grid; grid-template-columns: 72px 1fr auto;
+  align-items: center; gap: 0.75rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--border));
+  transition: background 0.15s;
+}
+.api-endpoint:hover { background: rgba(0,212,255,0.03); }
+.api-endpoint:last-child { border-bottom: none; }
+.method {
+  font-size: 0.65rem; font-weight: 700; text-align: center;
+  padding: 2px 6px; border-radius: 4px;
+  font-family: var(--ff-mono);
+  min-width: 48px;
+}
+.method--get  { background: rgba(16,185,129,0.15); color: var(--green); }
+.method--post { background: rgba(0,212,255,0.12); color: var(--cyan); }
+.method--patch{ background: rgba(245,158,11,0.15); color: var(--amber); }
+.method--del  { background: rgba(239,68,68,0.12);  color: var(--red); }
+.method--ws   { background: rgba(124,58,237,0.15); color: #a78bfa; }
+.ep-path  { font-family: var(--ff-mono); font-size: 0.72rem; color: var(--txt2); }
+.ep-desc  { font-size: 0.68rem; color: var(--txt3); text-align: right; }
+
+/* ════════════════════════════════════════════════════
+   FLOWS TAB  (tab 4)
+════════════════════════════════════════════════════ */
+.flows-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  gap: 1rem;
+}
+@media (max-width: 900px) { .flows-grid { grid-template-columns: 1fr; } }
+
+.flow-card {
+  background: var(--bg1); border: 1px solid var(--border);
+  border-radius: 8px; overflow: hidden;
+}
+.flow-card__head {
+  padding: 0.875rem 1.25rem;
+  background: var(--bg2); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 0.75rem;
+}
+.flow-card__icon { font-size: 1.25rem; }
+.flow-card__title {
+  font-family: var(--ff-head); font-weight: 700;
+  color: var(--txt); font-size: 0.9rem;
+}
+.flow-card__sub { font-size: 0.7rem; color: var(--txt3); }
+.flow-card__body { padding: 1rem 1.25rem; }
+
+.flow-steps { display: flex; flex-direction: column; gap: 0; }
+.flow-step {
+  display: flex; gap: 0.75rem; align-items: flex-start;
+  padding: 0.4rem 0; position: relative;
+}
+.flow-step__num {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--bg3); border: 1px solid var(--border2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.65rem; font-weight: 700; color: var(--cyan);
+  flex-shrink: 0; margin-top: 1px; z-index: 1;
+}
+.flow-step__line {
+  position: absolute; left: 11px; top: 23px; bottom: -6px;
+  width: 1px; background: linear-gradient(to bottom, var(--border2), transparent);
+}
+.flow-step:last-child .flow-step__line { display: none; }
+.flow-step__content { flex: 1; }
+.flow-step__action { font-size: 0.75rem; color: var(--txt); font-weight: 500; }
+.flow-step__detail { font-size: 0.68rem; color: var(--txt3); margin-top: 1px; }
+.flow-step__code {
+  font-family: var(--ff-mono); font-size: 0.68rem;
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 4px; padding: 2px 6px; color: var(--cyan2);
+  display: inline-block; margin-top: 3px;
+}
+
+/* ════════════════════════════════════════════════════
+   CSS TAB  (tab 5)
+════════════════════════════════════════════════════ */
+.css-files-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 0.75rem; margin-bottom: 1.5rem;
+}
+.css-file-card {
+  background: var(--bg1); border: 1px solid var(--border);
+  border-radius: 8px; padding: 0.875rem 1rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.css-file-card:hover { border-color: var(--border2); box-shadow: var(--glow); }
+.css-file-card__name {
+  font-family: var(--ff-mono); font-weight: 700;
+  color: var(--cyan); font-size: 0.78rem; margin-bottom: 0.35rem;
+}
+.css-file-card__desc { font-size: 0.72rem; color: var(--txt2); margin-bottom: 0.5rem; }
+.css-file-card__classes { display: flex; flex-wrap: wrap; gap: 3px; }
+.class-tag {
+  font-size: 0.62rem; padding: 1px 6px; border-radius: 3px;
+  background: var(--bg3); border: 1px solid var(--border);
+  color: var(--txt3); font-family: var(--ff-mono);
+}
+.class-tag--root { background: rgba(0,212,255,0.08); color: var(--cyan2); border-color: rgba(0,212,255,0.2); }
+
+/* CSS vars quick ref */
+.vars-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 0.5rem;
+}
+.var-row {
+  background: var(--bg1); border: 1px solid var(--border);
+  border-radius: 6px; padding: 0.5rem 0.875rem;
+  display: flex; align-items: center; gap: 0.75rem;
+}
+.var-row__swatch {
+  width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.var-row__name { font-family: var(--ff-mono); font-size: 0.72rem; color: var(--cyan2); flex: 1; }
+.var-row__desc { font-size: 0.68rem; color: var(--txt3); text-align: right; }
+
+/* ════════════════════════════════════════════════════
+   ROLES TAB  (tab 6)
+════════════════════════════════════════════════════ */
+.roles-table-wrap { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border); }
+.roles-table { width: 100%; border-collapse: collapse; }
+.roles-table th, .roles-table td {
+  padding: 0.5rem 1rem; border-bottom: 1px solid var(--border);
+  text-align: center; font-size: 0.75rem;
+}
+.roles-table th { background: var(--bg2); color: var(--txt3); font-size: 0.65rem; letter-spacing: 0.1em; }
+.roles-table td:first-child { text-align: left; font-weight: 500; color: var(--txt); }
+.roles-table tr:last-child td { border-bottom: none; }
+.roles-table tr:hover td { background: rgba(0,212,255,0.03); }
+.check { color: var(--green); font-size: 1rem; }
+.cross { color: var(--txt3); font-size: 0.9rem; }
+
+/* ════════════════════════════════════════════════════
+   SEARCH HIGHLIGHT
+════════════════════════════════════════════════════ */
+.hl { background: rgba(0,212,255,0.25); color: var(--cyan); border-radius: 2px; }
+.hidden-by-search { display: none !important; }
+
+/* ════════════════════════════════════════════════════
+   ANIMATIONS
+════════════════════════════════════════════════════ */
+@keyframes fadeDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+/* ════════════════════════════════════════════════════
+   STATUS BAR
+════════════════════════════════════════════════════ */
+.status-bar {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+  background: rgba(3,11,22,0.9); backdrop-filter: blur(8px);
+  border-top: 1px solid var(--border);
+  display: flex; align-items: center; gap: 1.5rem;
+  padding: 0 1.5rem; height: 28px;
+  font-size: 0.65rem; color: var(--txt3);
+}
+.sb-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--green); display: inline-block;
+  animation: pulse 2s infinite;
+}
+.sb-item { display: flex; align-items: center; gap: 5px; }
+.sb-val { color: var(--cyan2); }
+</style>
+</head>
+<body>
+
+<!-- ══ HEADER ══════════════════════════════════════════════════════ -->
+<header class="hdr">
+  <div class="hdr__logo">NEXA<span>POS</span></div>
+  <div class="hdr__sep"></div>
+  <div class="hdr__version">v2.0 · 2026</div>
+  <nav class="hdr__nav">
+    <button class="nav-btn active" onclick="switchTab(0)" data-num="8">Stack</button>
+    <button class="nav-btn" onclick="switchTab(1)" data-num="27">Database</button>
+    <button class="nav-btn" onclick="switchTab(2)" data-num="22">Pages</button>
+    <button class="nav-btn" onclick="switchTab(3)" data-num="18">API</button>
+    <button class="nav-btn" onclick="switchTab(4)" data-num="7">Flows</button>
+    <button class="nav-btn" onclick="switchTab(5)">CSS</button>
+    <button class="nav-btn" onclick="switchTab(6)">Roles</button>
+  </nav>
+  <div class="hdr__search">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+    </svg>
+    <input type="text" id="search-input" placeholder="ค้นหา class, table, route..." oninput="doSearch(this.value)"/>
+  </div>
+</header>
+
+<!-- ══ MAIN ════════════════════════════════════════════════════════ -->
+<main class="main">
+
+<!-- ─── TAB 0: STACK ────────────────────────────────────────────── -->
+<div class="tab-panel active" id="tab-0">
+  <div class="hero">
+    <div class="hero-card">
+      <div class="hero-card__label">โปรเจค</div>
+      <div class="hero-card__title">NexaPos</div>
+      <div class="hero-card__sub">Multi-tenant SaaS POS · B2B · Thai Market</div>
+    </div>
+    <div class="hero-card">
+      <div class="hero-card__label">Tables / Routes / Pages</div>
+      <div class="hero-card__title">27 · 18 · 22</div>
+      <div class="hero-card__sub">PostgreSQL · Fastify · Next.js 15</div>
+    </div>
+    <div class="hero-card">
+      <div class="hero-card__label">Architecture</div>
+      <div class="hero-card__title">Monorepo</div>
+      <div class="hero-card__sub">pnpm workspaces · 4 packages · TypeScript strict</div>
+    </div>
+  </div>
+
+  <div class="section-title">Tech Stack</div>
+  <div class="stack-grid">
+    <div class="stack-row" style="animation-delay:0.05s">
+      <div class="stack-row__icon" style="background:rgba(0,212,255,0.1)">🌐</div>
+      <div>
+        <div class="stack-row__layer">Frontend</div>
+        <div class="stack-row__tech">Next.js 15 + React 19</div>
+        <div class="stack-row__detail">App Router · TypeScript strict · TailwindCSS</div>
+      </div>
+    </div>
+    <div class="stack-row" style="animation-delay:0.1s">
+      <div class="stack-row__icon" style="background:rgba(13,211,187,0.1)">⚡</div>
+      <div>
+        <div class="stack-row__layer">Backend</div>
+        <div class="stack-row__tech">Fastify 5 + TypeScript</div>
+        <div class="stack-row__detail">Drizzle ORM · Zod validation · pino logger</div>
+      </div>
+    </div>
+    <div class="stack-row" style="animation-delay:0.15s">
+      <div class="stack-row__icon" style="background:rgba(124,58,237,0.15)">🗄</div>
+      <div>
+        <div class="stack-row__layer">Database</div>
+        <div class="stack-row__tech">PostgreSQL (Supabase)</div>
+        <div class="stack-row__detail">RLS · 27 tables · multi-tenant shop_id isolation</div>
+      </div>
+    </div>
+    <div class="stack-row" style="animation-delay:0.2s">
+      <div class="stack-row__icon" style="background:rgba(245,158,11,0.1)">🔐</div>
+      <div>
+        <div class="stack-row__layer">Auth</div>
+        <div class="stack-row__tech">Supabase Auth + Custom JWT</div>
+        <div class="stack-row__detail">claims: shop_id, user_id, role · 15m access / 7d refresh</div>
+      </div>
+    </div>
+    <div class="stack-row" style="animation-delay:0.25s">
+      <div class="stack-row__icon" style="background:rgba(16,185,129,0.1)">🔄</div>
+      <div>
+        <div class="stack-row__layer">Real-time</div>
+        <div class="stack-row__tech">WebSocket (@fastify/websocket)</div>
+        <div class="stack-row__detail">/ws · /ws-display · /api/v1/ws-qr</div>
+      </div>
+    </div>
+    <div class="stack-row" style="animation-delay:0.3s">
+      <div class="stack-row__icon" style="background:rgba(239,68,68,0.1)">☁</div>
+      <div>
+        <div class="stack-row__layer">Worker / Proxy</div>
+        <div class="stack-row__tech">Cloudflare Workers</div>
+        <div class="stack-row__detail">X-Internal-Token · edge routing</div>
+      </div>
+    </div>
+    <div class="stack-row" style="animation-delay:0.35s">
+      <div class="stack-row__icon" style="background:rgba(0,212,255,0.08)">📦</div>
+      <div>
+        <div class="stack-row__layer">Monorepo</div>
+        <div class="stack-row__tech">pnpm workspaces</div>
+        <div class="stack-row__detail">@nexapos/frontend · backend · shared · worker</div>
+      </div>
+    </div>
+    <div class="stack-row" style="animation-delay:0.4s">
+      <div class="stack-row__icon" style="background:rgba(124,58,237,0.1)">🔒</div>
+      <div>
+        <div class="stack-row__layer">Encryption</div>
+        <div class="stack-row__tech">AES-256-GCM</div>
+        <div class="stack-row__detail">PromptPay · bank_account · api_keys</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">โครงสร้างโฟลเดอร์</div>
+  <div class="tree">
+    <div class="tree__title">Monorepo Structure</div>
+    <pre><span class="d">apps/</span>
+  <span class="d">frontend/</span>          <span class="c">← Next.js 15</span>
+    <span class="d">src/</span>
+      <span class="d">app/</span>             <span class="c">← App Router pages</span>
+      <span class="d">components/</span>      <span class="c">← Shared UI components</span>
+      <span class="d">lib/</span>             <span class="c">← Client utilities</span>
+      <span class="d">styles/</span>          <span class="c">← CSS files (BEM)</span>
+  <span class="d">backend/</span>           <span class="c">← Fastify 5</span>
+    <span class="d">src/</span>
+      <span class="d">routes/</span>          <span class="c">← API route handlers</span>
+      <span class="d">services/</span>        <span class="c">← Business logic</span>
+      <span class="d">repositories/</span>    <span class="c">← DB access (Drizzle)</span>
+      <span class="d">middleware/</span>      <span class="c">← Auth, rate-limit, validation</span>
+      <span class="d">db/</span>              <span class="c">← Schema + migrations</span>
+<span class="d">packages/</span>
+  <span class="d">shared/</span>            <span class="c">← Types shared frontend↔backend</span>
+  <span class="d">worker/</span>            <span class="c">← Cloudflare Worker proxy</span></pre>
+  </div>
+
+  <div class="section-title">WebSocket Events</div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Event</th><th>Channel</th><th>Direction</th><th>Payload</th></tr></thead>
+      <tbody>
+        <tr><td class="hi mono">ORDER_CREATED</td><td><span class="badge badge--cyan">/ws</span></td><td class="dim">Server→POS</td><td class="dim">orderId, dailySeq, total</td></tr>
+        <tr><td class="hi mono">STOCK_UPDATE</td><td><span class="badge badge--cyan">/ws</span></td><td class="dim">Server→POS</td><td class="dim">productId, qty</td></tr>
+        <tr><td class="hi mono">CHECKOUT_CASH</td><td><span class="badge badge--teal">/ws-display</span></td><td class="dim">Server→Display</td><td class="dim">total, items</td></tr>
+        <tr><td class="hi mono">CHECKOUT_QR</td><td><span class="badge badge--teal">/ws-display</span></td><td class="dim">Server→Display</td><td class="dim">qrUrl, total</td></tr>
+        <tr><td class="hi mono">CHECKOUT_PAID</td><td><span class="badge badge--teal">/ws-display</span></td><td class="dim">Server→Display</td><td class="dim">orderId</td></tr>
+        <tr><td class="hi mono">CHECKOUT_CLOSE</td><td><span class="badge badge--teal">/ws-display</span></td><td class="dim">Server→Display</td><td class="dim">—</td></tr>
+        <tr><td class="hi mono">QR_CONFIRMED</td><td><span class="badge badge--purple">/ws-qr</span></td><td class="dim">Server→Desktop</td><td class="dim">magicLink</td></tr>
+        <tr><td class="hi mono">WITHDRAWAL_REQUEST</td><td><span class="badge badge--cyan">/ws</span></td><td class="dim">Server→Admin POS</td><td class="dim">requestId, staffName, items</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ─── TAB 1: DATABASE ──────────────────────────────────────────── -->
+<div class="tab-panel" id="tab-1">
+  <div class="db-groups" id="db-groups-container">
+
+    <div class="db-group">
+      <div class="db-group__head">
+        <span style="font-size:1.1rem">🏪</span>
+        <span class="db-group__head-title">Shops &amp; Auth</span>
+        <span class="db-group__head-count"><span class="badge badge--gray">4 tables</span></span>
+      </div>
+      <div class="db-group__body">
+        <div class="table-card">
+          <div class="table-card__name">shops</div>
+          <div class="table-card__desc">ร้านค้าหลัก — root tenant entity</div>
+          <div class="col-list">
+            <span class="col-pill col-pill--pk">id UUID PK</span>
+            <span class="col-pill">shop_code</span><span class="col-pill">name</span>
+            <span class="col-pill">logo_url</span><span class="col-pill">province</span>
+            <span class="col-pill">vat_enabled</span>
+            <span class="col-pill col-pill--enc">promptpay_number_encrypted</span>
+            <span class="col-pill col-pill--json">membership_config JSONB</span>
+            <span class="col-pill">telegram_chat_id</span>
+          </div>
+        </div>
+        <div class="table-card">
+          <div class="table-card__name">branches</div>
+          <div class="table-card__desc">สาขาของร้าน</div>
+          <div class="col-list">
+            <span class="col-pill col-pill--pk">id UUID PK</span>
+            <span class="col-pill col-pill--fk">shop_id FK</span>
+            <span class="col-pill">name</span><span class="col-pill">address</span>
+            <span class="col-pill">is_active</span>
+          </div>
+        </div>
+        <div class="table-card">
+          <div class="table-card__name">users</div>
+          <div class="table-card__desc">บัญชีผู้ใช้ sync จาก Supabase Auth</div>
+          <div class="col-list">
+            <span class="col-pill col-pill--pk">id UUID PK</span>
+            <span class="col-pill">email</span>
+          </div>
+        </div>
+        <div class="table-card">
+          <div class="table-card__name">user_shop_roles</div>
+          <div class="table-card__desc">สิทธิ์ role ต่อร้าน (composite PK)</div>
+          <div class="col-list">
+            <span class="col-pill col-pill--pk">user_id + shop_id PK</span>
+            <span class="col-pill col-pill--fk">branch_id FK</span>
+            <span class="col-pill">role: owner|manager|cashier|viewer</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="db-group">
+      <div class="db-group__head">
+        <span style="font-size:1.1rem">📦</span>
+        <span class="db-group__head-title">Products &amp; Stock</span>
+        <span class="db-group__head-count"><span class="badge badge--gray">6 tables</span></span>
+      </div>
+      <div class="db-group__body">
+        <div class="table-card">
+          <div class="table-card__name">products</div>
+          <div class="table-card__desc">สินค้า</div>
+          <div class="col-list">
+            <span class="col-pill col-pill--pk">id UUID PK</span>
+            <span class="col-pill col-pill--fk">shop_id FK</span>
+            <span class="col-pill">name</span><span class="col-pill">sku</span>
+            <span class="col-pill">barcode</span><span class="col-pill">price</span>
+            <span class="col-pill">cost_price</span><span class="col-pill">unit</span>
+            <span class="col-pill">category</span><span class="col-pill">image_url</span>
+            <span class="col-pill">show_on_pos</span>
+          </div>
+        </div>
+        <div class="table-card">
+          <div class="table-card__name">branch_stock</div>
+          <div class="table-card__desc">สต๊อกรายสาขา (composite PK)</div>
+          <div class="col-list">
+            <span class="col-pill col-pill--pk">branch_id + product_id PK</span>
+            <span class="col-pill">quantity</span><span class="col-pill">min_qty</span>
+          </div>
+        </div>
+        <div class="table-card">
+          <div class="table-card__name">stock_transactions</div>
+          <div class="table-card__desc">ประวัติการเปลี่ยนแปลงสต๊อก</div>
+          <div class="col-list">
+            <span class="col-pill col-pill--pk">id</span>
+            <span class="col-pill">type: manual_set|manual_add|sale_deduct|adjustment</span>
+            <span class="col-pill">qty_before</span><span class="col-pill">qty_change</span>
+            <span class="col-pill">qty_after</span><span class="col-pill col-pill--fk">created_by FK</span>
+          </div>
+        </div>
+        <div class="table-card">
+          <div class="table-card__name">shop_units</div>
+          <div class="table-card__desc">หน่วยนับสินค้าของร้าน</div>
+          <div class="col-list">
+            <span class="col-pill col-pill--pk">id</span>
+            <span class="col-pill col-pill--fk">shop_id FK</span>
+            <span class="col-pill">name</span>
+          </div>
+        </div>
+        <div class="table-card">
+          <div class="table-card__name">consumables</div>
+          <div class="table-card__desc">วัตถุดิบสิ้นเปลือง</div>
+          <div class="col-list">
+            <span class="col-pill col-pill--pk">id</span>
+            <span class="col-pill col-pill--fk">shop_id FK</span>
+            <span class="col-pill">name</span><span class="col-pill">unit</span>
+            <span class="col-pill">quantity decimal</span><span class="col-pill">min_qty</span>
+          </div>
+        </div>
+        <div class="table-card">
+          <div class="table-card__name">product_consumables</div>
+          <div class="table-card__desc">BOM: สินค้า → วัตถุดิบ</div>
+          <div class="col-list">
+            <span class="col-pill col-pill--pk">product_id + consumable_id PK</span>
+            <span class="col-pill">qty_per_unit</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="db-group">
+      <div class="db-group__head">
+        <span style="font-size:1.1rem">🧾</span>
+        <span class="db-group__head-title">Orders</span>
+        <span class="db-group__head-count"><span class="badge badge--gray">2 tables</span></span>
+      </div>
+      <div class="db-group__body">
+        <div class="table-card">
+          <div class="table-card__name">orders</div>
+          <div class="table-card__desc">ออเดอร์การขาย</div>
+          <div class="col-list">
+            <span class="col-pill col-pill--pk">id UUID PK</span>
+            <span class="col-pill">order_number (cumulative)</span>
+            <span class="col-pill">daily_seq (resets midnight BKK)</span>
+            <span class="col-pill">receipt_token UUID (public)</span>
+            <span class="col-pill col-pill--fk">shop_id, branch_id, user_id, customer_id</span>
+            <span class="col-pill">status: pending|paid|void|refunded</span>
+            <span class="col-pill">total</span><span class="col-pill">discount</span>
+            <span class="col-pill">points_earned</span><span class="col-pill">points_redeemed</span>
+            <span class="col-pill">payment_method: cash|card|transfer|other</span>
+            <span class="col-pill">refund fields</span>
+          </div>
+        </div>
+        <div class="table-card">
+          <div class="table-card__name">order_items</div>
+          <div class="table-card__desc">รายการสินค้าในออเดอร์</div>
+          <div class="col-list">
+            <span class="col-pill col-pill--fk">order_id FK</span>
+            <span class="col-pill col-pill--fk">product_id FK</span>
+            <span class="col-pill">quantity</span><span class="col-pill">unit_price</span>
+            <span class="col-pill">subtotal</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="db-group">
+      <div class="db-group__head">
+        <span style="font-size:1.1rem">👥</span>
+        <span class="db-group__head-title">Customers &amp; Promotions</span>
+        <span class="db-group__head-count"><span class="badge badge--gray">4 tables</span></span>
+      </div>
+      <div class="db-group__body">
+        <div class="table-card">
+          <div class="table-card__name">customers</div>
+          <div class="table-card__desc">ลูกค้า / สมาชิก</div>
+          <div class="col-list">
+            <span class="col-pill col-pill--pk">id UUID PK</span>
+            <span class="col-pill col-pill--fk">shop_id FK</span>
+            <span class="col-pill">name</span><span class="col-pill">phone (UNIQUE/shop)</span>
+            <span class="col-pill">email</span><span class="col-pill">birthday</span>
+            <span class="col-pill">points</span><span class="col-pill">total_spent</span>
+            <span class="col-pill">tier: bronze|silver|gold</span><span class="col-pill">notes</span>
+          </div>
+        </div>
+        <div class="table-card">
+          <div class="table-card__name">promotions</div>
+          <div class="table-card__desc">โปรโมชั่น</div>
+          <div class="col-list">
+            <span class="col-pill col-pill--pk">id</span>
+            <span class="col-pill col-pill--fk">shop_id FK</span>
+            <span class="col-pill">type: percent|fixed</span>
+            <span class="col-pill">value</span><span class="col-pill">color</span>
+            <span class="col-pill">is_active</span>
+          </div>
+        </div>
+        <div class="table-card">
+          <div class="table-card__name">combos</div>
+          <div class="table-card__desc">คอมโบเมนู</div>
+          <div class="col-list">
+            <span class="col-pill col-pill--pk">id</span>
+            <span class="col-pill col-pill--fk">shop_id FK</span>
+            <span class="col-pill">name</span><span class="col-pill">price</span>
+            <span class="col-pill">is_active</span>
+          </div>
+        </div>
+        <div class="table-card">
+          <div class="table-card__name">combo_items</div>
+          <div class="table-card__desc">รายการในคอมโบ</div>
+          <div class="col-list">
+            <span class="col-pill col-pill--fk">combo_id + product_id PK</span>
+            <span class="col-pill">quantity</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="db-group">
+      <div class="db-group__head">
+        <span style="font-size:1.1rem">📊</span>
+        <span class="db-group__head-title">Subscriptions, Staff &amp; QR</span>
+        <span class="db-group__head-count"><span class="badge badge--gray">6 tables</span></span>
+      </div>
+      <div class="db-group__body">
+        <div class="table-card">
+          <div class="table-card__name">subscriptions</div>
+          <div class="table-card__desc">แพ็กเกจสมาชิก</div>
+          <div class="col-list">
+            <span class="col-pill col-pill--pk">shop_id UNIQUE PK</span>
+            <span class="col-pill">plan</span>
+            <span class="col-pill">billing_interval: monthly|yearly|once</span>
+            <span class="col-pill">status: active|cancelled|past_due</span>
+            <span class="col-pill">expires_at</span><span class="col-pill">is_whitelisted</span>
+          </div>
+        </div>
+        <div class="table-card">
+          <div class="table-card__name">staff_qr_tokens</div>
+          <div class="table-card__desc">QR token สำหรับ staff login</div>
+          <div class="col-list">
+            <span class="col-pill col-pill--fk">user_id, shop_id, branch_id</span>
+            <span class="col-pill">token UUID</span>
+          </div>
+        </div>
+        <div class="table-card">
+          <div class="table-card__name">staff_checkins</div>
+          <div class="table-card__desc">บันทึก check-in/out พนักงาน</div>
+          <div class="col-list">
+            <span class="col-pill">—</span>
+          </div>
+        </div>
+        <div class="table-card">
+          <div class="table-card__name">qr_device_tokens</div>
+          <div class="table-card__desc">token อุปกรณ์ 30-day TTL</div>
+          <div class="col-list">
+            <span class="col-pill">—</span>
+          </div>
+        </div>
+        <div class="table-card">
+          <div class="table-card__name">qr_login_sessions</div>
+          <div class="table-card__desc">session QR login flow</div>
+          <div class="col-list">
+            <span class="col-pill">status: pending|confirmed|used|expired</span>
+          </div>
+        </div>
+        <div class="table-card">
+          <div class="table-card__name">withdrawal_requests</div>
+          <div class="table-card__desc">คำขอเบิกสต๊อก</div>
+          <div class="col-list">
+            <span class="col-pill col-pill--fk">shop_id, branch_id</span>
+            <span class="col-pill">staff_name</span>
+            <span class="col-pill col-pill--json">items JSONB</span>
+            <span class="col-pill">status: pending|approved|rejected</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="db-group">
+      <div class="db-group__head">
+        <span style="font-size:1.1rem">📋</span>
+        <span class="db-group__head-title">Logs, Notifications &amp; Config</span>
+        <span class="db-group__head-count"><span class="badge badge--gray">9 tables</span></span>
+      </div>
+      <div class="db-group__body">
+        <div class="table-card">
+          <div class="table-card__name">shop_notifications</div>
+          <div class="table-card__desc">การแจ้งเตือนร้านค้า</div>
+          <div class="col-list">
+            <span class="col-pill">type</span><span class="col-pill">title</span>
+            <span class="col-pill">message</span><span class="col-pill">read_at</span>
+          </div>
+        </div>
+        <div class="table-card">
+          <div class="table-card__name">shop_sales_snapshots</div>
+          <div class="table-card__desc">snapshot ยอดขายรายวัน/เดือน/ปี</div>
+          <div class="col-list">
+            <span class="col-pill">period_type: day|month|year</span>
+            <span class="col-pill">period_key</span><span class="col-pill">revenue</span>
+            <span class="col-pill">order_count</span><span class="col-pill">rank</span>
+          </div>
+        </div>
+        <div class="table-card">
+          <div class="table-card__name">audit_logs</div>
+          <div class="table-card__desc">Security audit — 7-day retention</div>
+          <div class="col-list">
+            <span class="col-pill">event</span><span class="col-pill">user_id</span>
+            <span class="col-pill">role</span><span class="col-pill">ip_address</span>
+            <span class="col-pill">method</span><span class="col-pill">endpoint</span>
+            <span class="col-pill">status</span><span class="col-pill">execution_time</span>
+            <span class="col-pill col-pill--json">metadata JSONB</span>
+          </div>
+        </div>
+        <div class="table-card">
+          <div class="table-card__name">logs + events + payment_logs</div>
+          <div class="table-card__desc">Action logs, analytics events, payment events</div>
+          <div class="col-list">
+            <span class="col-pill">action, entity_type, entity_id</span>
+            <span class="col-pill col-pill--json">payload JSONB</span>
+          </div>
+        </div>
+        <div class="table-card">
+          <div class="table-card__name">app_settings</div>
+          <div class="table-card__desc">System configuration (key/value)</div>
+          <div class="col-list">
+            <span class="col-pill">key</span><span class="col-pill">value</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /db-groups -->
+</div>
+
+<!-- ─── TAB 2: PAGES ─────────────────────────────────────────────── -->
+<div class="tab-panel" id="tab-2">
+  <div class="section-title">หน้าจอ → Route → Class → File</div>
+  <div class="pages-grid" id="pages-grid">
+    <!-- pages injected by JS -->
+  </div>
+
+  <div class="section-title" style="margin-top:2rem">Components หลัก</div>
+  <div class="comp-grid" id="comp-grid">
+  </div>
+
+  <div class="section-title" style="margin-top:2rem">Admin Tabs (/admin)</div>
+  <div class="comp-grid" id="admin-tabs-grid">
+  </div>
+</div>
+
+<!-- ─── TAB 3: API ───────────────────────────────────────────────── -->
+<div class="tab-panel" id="tab-3">
+  <div class="api-groups" id="api-groups">
+    <!-- injected by JS -->
+  </div>
+</div>
+
+<!-- ─── TAB 4: FLOWS ─────────────────────────────────────────────── -->
+<div class="tab-panel" id="tab-4">
+  <div class="flows-grid" id="flows-grid">
+    <!-- injected by JS -->
+  </div>
+</div>
+
+<!-- ─── TAB 5: CSS ───────────────────────────────────────────────── -->
+<div class="tab-panel" id="tab-5">
+  <div class="section-title">CSS Files → UI ที่ควบคุม</div>
+  <div class="css-files-grid" id="css-files-grid">
+    <!-- injected by JS -->
+  </div>
+
+  <div class="section-title">CSS Variables (แก้สี/ขนาด Global)</div>
+  <div class="vars-grid" id="vars-grid">
+  </div>
+
+  <div class="section-title">Quick Fix Index — ต้องการแก้อะไร → ไปที่ไหน</div>
+  <div class="tbl-wrap">
+    <table id="quickfix-table">
+      <thead><tr><th>ต้องการแก้</th><th>ไฟล์</th><th>Class / Variable</th></tr></thead>
+      <tbody id="quickfix-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ─── TAB 6: ROLES ─────────────────────────────────────────────── -->
+<div class="tab-panel" id="tab-6">
+  <div class="section-title">Role Permissions Matrix</div>
+  <div class="roles-table-wrap">
+    <table class="roles-table">
+      <thead>
+        <tr>
+          <th style="text-align:left">Action</th>
+          <th>owner</th><th>manager</th><th>cashier</th><th>viewer</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>สร้างออเดอร์</td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="cross">—</span></td></tr>
+        <tr><td>แก้ไขสินค้า</td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="cross">—</span></td><td><span class="cross">—</span></td></tr>
+        <tr><td>จัดการ staff / roles</td><td><span class="check">✓</span></td><td><span class="cross">—</span></td><td><span class="cross">—</span></td><td><span class="cross">—</span></td></tr>
+        <tr><td>ดูรายงาน P&amp;L</td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="cross">—</span></td><td><span class="cross">—</span></td></tr>
+        <tr><td>เปลี่ยนการตั้งค่าร้าน</td><td><span class="check">✓</span></td><td><span class="cross">—</span></td><td><span class="cross">—</span></td><td><span class="cross">—</span></td></tr>
+        <tr><td>อนุมัติ refund</td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="cross">—</span></td><td><span class="cross">—</span></td></tr>
+        <tr><td>ดู audit log</td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="cross">—</span></td><td><span class="cross">—</span></td></tr>
+        <tr><td>จัดการ promotions/combos</td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="cross">—</span></td><td><span class="cross">—</span></td></tr>
+        <tr><td>ดูออเดอร์วันนี้</td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td></tr>
+        <tr><td>อนุมัติเบิกสต๊อก</td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="cross">—</span></td><td><span class="cross">—</span></td></tr>
+        <tr><td>จัดการ customers/members</td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="cross">—</span></td><td><span class="cross">—</span></td></tr>
+        <tr><td>เพิ่ม/แก้สต๊อก manual</td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="cross">—</span></td><td><span class="cross">—</span></td></tr>
+        <tr><td>จัดการ subscription</td><td><span class="check">✓</span></td><td><span class="cross">—</span></td><td><span class="cross">—</span></td><td><span class="cross">—</span></td></tr>
+        <tr><td>เบิกสต๊อก (request)</td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="cross">—</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section-title" style="margin-top:1.5rem">Middleware Stack (Request Order)</div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>#</th><th>Middleware</th><th>Detail</th></tr></thead>
+      <tbody>
+        <tr><td class="hi">1</td><td>Rate Limit</td><td class="dim">200/min per IP, endpoint-specific limits</td></tr>
+        <tr><td class="hi">2</td><td>CORS</td><td class="dim">CORS_ORIGIN env only — no wildcard</td></tr>
+        <tr><td class="hi">3</td><td>Internal Token</td><td class="dim">X-Internal-Token: CF Worker → Fastify</td></tr>
+        <tr><td class="hi">4</td><td>Route Matching</td><td class="dim">Fastify router</td></tr>
+        <tr><td class="hi">5</td><td>Auth Middleware</td><td class="dim">Supabase JWT verify — applied per route</td></tr>
+        <tr><td class="hi">6</td><td>Role Guard</td><td class="dim">requireAdminShop / requireOwnerShop / guardShop</td></tr>
+        <tr><td class="hi">7</td><td>Feature Gate</td><td class="dim">requireFeature → subscription check</td></tr>
+        <tr><td class="hi">8</td><td>Route Handler</td><td class="dim">business logic</td></tr>
+        <tr><td class="hi">9</td><td>Audit Log</td><td class="dim">fire-and-forget, every response</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section-title" style="margin-top:1.5rem">Theme System</div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Theme</th><th>Trigger</th><th>Detail</th></tr></thead>
+      <tbody>
+        <tr><td class="hi">warm</td><td class="dim">default dark</td><td class="dim">Orange primary, warm dark bg</td></tr>
+        <tr><td class="hi">light</td><td class="dim">data-theme="light"</td><td class="dim">Light mode variant</td></tr>
+        <tr><td class="hi">ocean</td><td class="dim">data-theme="ocean"</td><td class="dim">Blue dark, cyan accents</td></tr>
+        <tr><td colspan="3" class="dim" style="font-size:0.7rem">สลับผ่าน data-theme บน &lt;html&gt; · Mobile: ตาม OS · Desktop: localStorage["nexapos-theme"] · Inline script ใน &lt;head&gt; (ป้องกัน flash)</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+</main>
+
+<!-- ══ STATUS BAR ══════════════════════════════════════════════════ -->
+<div class="status-bar">
+  <div class="sb-item"><span class="sb-dot"></span> <span class="sb-val">NexaPos Architecture</span></div>
+  <div class="sb-item">Tables <span class="sb-val">27</span></div>
+  <div class="sb-item">API Routes <span class="sb-val">18 groups</span></div>
+  <div class="sb-item">Pages <span class="sb-val">22</span></div>
+  <div class="sb-item">CSS Files <span class="sb-val">30+</span></div>
+  <div style="margin-left:auto" class="sb-item">Generated <span class="sb-val">2026-04-08</span></div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+//  DATA
+// ══════════════════════════════════════════════════════════════
+
+const PAGES = [
+  { route:'/', name:'Landing Page', class:'.lp-root', file:'app/page.tsx', auth:'public', css:'styles/pages/home.css' },
+  { route:'/login', name:'หน้า Login', class:'.page-login', file:'app/login/page.tsx', auth:'public', css:'styles/pages/login.css' },
+  { route:'/qr-login', name:'QR Login (desktop)', class:'.page-login-qr', file:'app/qr-login/page.tsx', auth:'public', css:'styles/pages/login.css' },
+  { route:'/register', name:'สมัครสมาชิก', class:'(multi-step)', file:'app/register/page.tsx', auth:'public', css:'styles/pages/register.css' },
+  { route:'/select-shop', name:'เลือกร้านค้า', class:'.page-select-shop', file:'app/select-shop/page.tsx', auth:'JWT', css:'styles/pages/select-shop.css' },
+  { route:'/select-branch', name:'เลือกสาขา', class:'(branch-picker)', file:'app/select-branch/page.tsx', auth:'JWT', css:'styles/pages/select-branch.css' },
+  { route:'/pos', name:'หน้าขาย (POS)', class:'.pos-wrap', file:'app/pos/page.tsx', auth:'cashier+', css:'styles/pages/pos.css', highlight:true },
+  { route:'/dashboard', name:'แดชบอร์ด', class:'.dash', file:'app/dashboard/page.tsx', auth:'manager+', css:'styles/pages/dashboard.css', highlight:true },
+  { route:'/admin', name:'จัดการร้าน (Admin)', class:'.page-admin', file:'app/admin/page.tsx', auth:'manager+', css:'styles/pages/admin.css', highlight:true },
+  { route:'/stock', name:'จัดการสต๊อก', class:'.stk__root', file:'app/stock/page.tsx', auth:'manager+', css:'styles/pages/stock.css' },
+  { route:'/reports', name:'รายงาน P&L', class:'.rpt__page', file:'app/reports/page.tsx', auth:'manager+', css:'styles/pages/reports.css', highlight:true },
+  { route:'/pay', name:'หน้าจอลูกค้า', class:'.pd-wrap', file:'app/pay/page.tsx', auth:'public', css:'styles/pages/pay.css' },
+  { route:'/receipt/[token]', name:'ใบเสร็จออนไลน์', class:'.rcpt-page', file:'app/receipt/[token]/page.tsx', auth:'public', css:'styles/pages/receipt.css' },
+  { route:'/withdraw', name:'เบิกสต๊อก', class:'.withdraw-wrap', file:'app/withdraw/page.tsx', auth:'cashier+', css:'styles/pages/withdraw.css' },
+  { route:'/refund', name:'คืนเงิน', class:'(refund-form)', file:'app/refund/page.tsx', auth:'manager+', css:'styles/pages/refund.css' },
+  { route:'/notifications', name:'การแจ้งเตือน', class:'(notif-page)', file:'app/notifications/page.tsx', auth:'JWT', css:'styles/pages/notifications.css' },
+  { route:'/subscription', name:'แพ็กเกจ', class:'(subscription)', file:'app/subscription/page.tsx', auth:'owner', css:'styles/pages/subscription.css' },
+  { route:'/qr-auth', name:'QR Auth (mobile)', class:'—', file:'app/qr-auth/page.tsx', auth:'public', css:'—' },
+  { route:'/dev', name:'Developer Page', class:'(dev-dashboard)', file:'app/dev/page.tsx', auth:'internal', css:'styles/pages/dev.css' },
+];
+
+const COMPONENTS = [
+  { name:'AuthHeader', file:'components/layout/AuthHeader.tsx', desc:'แถบนำทางบนสุด (admin/dash)' },
+  { name:'CartPanel', file:'components/pos/CartPanel.tsx', desc:'ตะกร้าสินค้า POS' },
+  { name:'CheckoutModal', file:'components/pos/CheckoutModal.tsx', desc:'Modal ชำระเงิน' },
+  { name:'SuccessModal', file:'components/pos/SuccessModal.tsx', desc:'Modal สำเร็จหลังชำระ' },
+  { name:'OrderDetailModal', file:'components/pos/OrderDetailModal.tsx', desc:'Modal รายละเอียดออเดอร์' },
+  { name:'TodayOrdersPanel', file:'components/pos/TodayOrdersPanel.tsx', desc:'แผงออเดอร์วันนี้' },
+  { name:'AdminLoginModal', file:'components/pos/AdminLoginModal.tsx', desc:'Modal login admin ใน POS' },
+  { name:'WithdrawalApprovalModal', file:'components/pos/WithdrawalApprovalModal.tsx', desc:'อนุมัติเบิกสต๊อก' },
+  { name:'CustomerDisplayLinkModal', file:'components/pos/CustomerDisplayLinkModal.tsx', desc:'Link หน้าจอลูกค้า' },
+  { name:'CustomersPanel', file:'components/CustomersPanel.tsx', desc:'แผงลูกค้า (POS sidebar)' },
+  { name:'PromotionsPanel', file:'components/PromotionsPanel.tsx', desc:'แผงโปรโมชั่น (POS sidebar)' },
+  { name:'NotificationBell', file:'components/NotificationBell.tsx', desc:'กระดิ่งแจ้งเตือน' },
+  { name:'ThemeSwitcher', file:'components/ThemeSwitcher.tsx', desc:'ปุ่มเปลี่ยนธีม' },
+  { name:'UpgradeGate', file:'components/UpgradeGate.tsx', desc:'Lock feature ต้อง upgrade' },
+  { name:'PWAInstall', file:'components/PWAInstall.tsx', desc:'แถบติดตั้ง PWA' },
+  { name:'ConfirmDialog', file:'components/ui/ConfirmDialog.tsx', desc:'ยืนยันก่อนลบ' },
+  { name:'Skeleton', file:'components/ui/Skeleton.tsx', desc:'Loading placeholder' },
+];
+
+const ADMIN_TABS = [
+  { name:'ProductsTab', file:'components/admin/ProductsTab.tsx', desc:'Tab สินค้า' },
+  { name:'StockTab', file:'components/admin/StockTab.tsx', desc:'Tab สต๊อก (.stk__root)' },
+  { name:'OrdersTab', file:'components/admin/OrdersTab.tsx', desc:'Tab ออเดอร์' },
+  { name:'UsersTab', file:'components/admin/UsersTab.tsx', desc:'Tab ผู้ใช้/Staff' },
+  { name:'MembersTab', file:'components/admin/MembersTab.tsx', desc:'Tab สมาชิก' },
+  { name:'SettingsTab', file:'components/admin/SettingsTab.tsx', desc:'Tab ตั้งค่า' },
+  { name:'StaffQrTab', file:'components/admin/StaffQrTab.tsx', desc:'Tab QR พนักงาน' },
+  { name:'AuditTab', file:'components/admin/AuditTab.tsx', desc:'Tab ประวัติการใช้งาน' },
+];
+
+const API_GROUPS = [
+  { prefix:'/api/v1/auth', label:'Auth', auth:'No', endpoints:[
+    { m:'POST', path:'/register', desc:'สมัครร้านใหม่' },
+  ]},
+  { prefix:'/api/v1', label:'Shops / Me', auth:'JWT', endpoints:[
+    { m:'GET', path:'/me/shops', desc:'ร้านทั้งหมดของ user' },
+    { m:'GET', path:'/shops/:id/settings', desc:'ตั้งค่าร้าน' },
+    { m:'PATCH', path:'/shops/:id/settings', desc:'อัพเดทตั้งค่า' },
+    { m:'POST', path:'/shops/:id/generate-code', desc:'สร้าง shop_code' },
+  ]},
+  { prefix:'/api/v1/shops/:id', label:'Products', auth:'JWT', endpoints:[
+    { m:'GET', path:'/products', desc:'รายการสินค้า' },
+    { m:'POST', path:'/products', desc:'เพิ่มสินค้า' },
+    { m:'PATCH', path:'/products/:pid', desc:'แก้ไขสินค้า' },
+    { m:'PATCH', path:'/products/:pid/stock', desc:'อัพเดทสต๊อก' },
+  ]},
+  { prefix:'/api/v1/shops/:id', label:'Orders', auth:'JWT cashier+', endpoints:[
+    { m:'POST', path:'/orders', desc:'สร้างออเดอร์' },
+    { m:'GET', path:'/orders', desc:'รายการออเดอร์' },
+    { m:'GET', path:'/orders/today', desc:'ออเดอร์วันนี้' },
+    { m:'PATCH', path:'/orders/:oid/status', desc:'เปลี่ยน status' },
+  ]},
+  { prefix:'/api/v1/shops/:id', label:'Refund', auth:'JWT manager+', endpoints:[
+    { m:'POST', path:'/orders/:oid/refund/request-otp', desc:'ขอ OTP refund ทาง Telegram' },
+    { m:'POST', path:'/orders/:oid/refund/confirm-otp', desc:'ยืนยัน OTP → refund' },
+  ]},
+  { prefix:'/api/v1/shops/:id', label:'Customers', auth:'JWT', endpoints:[
+    { m:'GET', path:'/customers', desc:'รายการลูกค้า' },
+    { m:'POST', path:'/customers', desc:'เพิ่มลูกค้า' },
+    { m:'PATCH', path:'/customers/:cid', desc:'แก้ไขลูกค้า' },
+    { m:'DEL', path:'/customers/:cid', desc:'ลบลูกค้า' },
+  ]},
+  { prefix:'/api/v1/shops/:id', label:'Reports', auth:'JWT + Feature', endpoints:[
+    { m:'GET', path:'/reports/pnl?fromDate&toDate&groupBy', desc:'P&L Report' },
+  ]},
+  { prefix:'/api/v1/shops/:id', label:'Promotions & Combos', auth:'JWT', endpoints:[
+    { m:'GET', path:'/promotions', desc:'รายการโปรโมชั่น' },
+    { m:'POST', path:'/promotions', desc:'เพิ่มโปรโมชั่น' },
+    { m:'PATCH', path:'/promotions/:pid', desc:'แก้ไข/ลบ' },
+    { m:'GET', path:'/combos', desc:'รายการคอมโบ' },
+    { m:'POST', path:'/combos', desc:'เพิ่มคอมโบ' },
+  ]},
+  { prefix:'/api/v1/shops/:id', label:'Consumables / BOM', auth:'JWT', endpoints:[
+    { m:'GET', path:'/consumables', desc:'รายการวัตถุดิบ' },
+    { m:'POST', path:'/consumables', desc:'เพิ่มวัตถุดิบ' },
+    { m:'GET', path:'/products/:pid/bom', desc:'ดู BOM สินค้า' },
+    { m:'PUT', path:'/products/:pid/bom', desc:'อัพเดท BOM' },
+  ]},
+  { prefix:'/api/v1/shops/:id', label:'Units', auth:'JWT', endpoints:[
+    { m:'GET', path:'/units', desc:'รายการหน่วยนับ' },
+    { m:'POST', path:'/units', desc:'เพิ่มหน่วย' },
+    { m:'DEL', path:'/units/:uid', desc:'ลบหน่วย' },
+  ]},
+  { prefix:'/api/v1/subscriptions', label:'Subscriptions', auth:'JWT', endpoints:[
+    { m:'GET', path:'/:shopId', desc:'ดู subscription' },
+    { m:'POST', path:'/:shopId', desc:'อัพเดท subscription' },
+  ]},
+  { prefix:'/api/v1/receipts', label:'Receipts (Public)', auth:'No', endpoints:[
+    { m:'GET', path:'/:receiptToken', desc:'ดูใบเสร็จออนไลน์' },
+  ]},
+  { prefix:'/api/v1/public', label:'Public', auth:'No', endpoints:[
+    { m:'GET', path:'/shops/:id', desc:'ข้อมูลร้านสาธารณะ' },
+    { m:'POST', path:'/shops/:id/register', desc:'สมัครสมาชิกร้าน' },
+  ]},
+  { prefix:'/api/v1/shops/:id', label:'Staff QR', auth:'JWT', endpoints:[
+    { m:'GET', path:'/staff-qr/token', desc:'ดู QR token' },
+    { m:'POST', path:'/staff-qr/checkin', desc:'Check in' },
+    { m:'POST', path:'/staff-qr/checkout', desc:'Check out' },
+  ]},
+  { prefix:'/api/v1/shops/:id', label:'Withdrawals', auth:'Mixed', endpoints:[
+    { m:'POST', path:'/withdrawals', desc:'สร้างคำขอเบิก' },
+    { m:'PATCH', path:'/withdrawals/:wid/approve', desc:'อนุมัติ' },
+    { m:'PATCH', path:'/withdrawals/:wid/reject', desc:'ปฏิเสธ' },
+  ]},
+  { prefix:'/api/v1/qr-session', label:'QR Login Session', auth:'No', endpoints:[
+    { m:'POST', path:'/qr-sessions', desc:'สร้าง session' },
+    { m:'GET', path:'/qr-sessions/:token', desc:'ดู status' },
+  ]},
+  { prefix:'/api/v1/audit', label:'Audit', auth:'JWT admin', endpoints:[
+    { m:'GET', path:'/audit/logs', desc:'ดู audit logs' },
+  ]},
+  { prefix:'WebSocket', label:'WebSocket Endpoints', auth:'—', endpoints:[
+    { m:'WS', path:'/ws', desc:'POS realtime (JWT required)' },
+    { m:'WS', path:'/ws-display', desc:'Customer Display (no auth)' },
+    { m:'WS', path:'/api/v1/ws-qr', desc:'QR login flow (no auth)' },
+  ]},
+];
+
+const FLOWS = [
+  {
+    icon:'🛒', title:'Order Creation (POS ขาย)', sub:'Cashier → Order → Stock → Points → Broadcast',
+    steps:[
+      { action:'Cashier เลือกสินค้า → CartPanel', detail:'เพิ่มสินค้า, ปรับ qty, เลือกลูกค้า, เลือก promotion' },
+      { action:'เปิด CheckoutModal', detail:'เลือกวิธีชำระ, ใส่ discount, redeem points', code:'POST /orders' },
+      { action:'Backend: createOrder()', detail:'Validate items + customer + points, check stock' },
+      { action:'INSERT orders + order_items', detail:'ใน single transaction' },
+      { action:'Deduct branch_stock', detail:'ต่อ product, broadcast STOCK_UPDATE → /ws' },
+      { action:'Deduct consumables via BOM', detail:'qty_per_unit × quantity ต่อ product' },
+      { action:'Update customer points + tier', detail:'calcPointsEarned(total), check thresholds' },
+      { action:'Broadcast CHECKOUT_PAID', detail:'→ /ws-display → Customer Display แสดงผล' },
+      { action:'Broadcast ORDER_CREATED', detail:'→ /ws → TodayOrdersPanel refresh' },
+      { action:'SuccessModal', detail:'แสดงยอด, onPrint() → thermal / window.print()' },
+    ]
+  },
+  {
+    icon:'📱', title:'QR Login Flow', sub:'Desktop → QR → Mobile scan → magic link',
+    steps:[
+      { action:'Desktop /login → สร้าง QR session', detail:'POST /api/v1/qr-sessions → token UUID', code:'WebSocket /ws-qr' },
+      { action:'Desktop WS polling', detail:'GET /qr-sessions/:token ทุก 2s หรือรับ WS event' },
+      { action:'Mobile scan QR', detail:'Open /qr-auth?t={token}' },
+      { action:'Mobile ส่ง token ผ่าน WS', detail:'Backend verify session' },
+      { action:'Backend สร้าง magic link', detail:'Supabase signInWithOtp' },
+      { action:'Desktop รับ QR_CONFIRMED', detail:'signInWithOtp() → redirect to /select-branch' },
+    ]
+  },
+  {
+    icon:'🖥', title:'Customer Display Real-time', sub:'/pay ↔ WebSocket /ws-display',
+    steps:[
+      { action:'POS Checkout → broadcast', detail:'CHECKOUT_CASH หรือ CHECKOUT_QR ส่งไป /ws-display' },
+      { action:'/pay รับ event', detail:'แสดง cash screen หรือ QR card' },
+      { action:'CHECKOUT_PAID received', detail:'แสดงยอดชำระ, แสดง success' },
+      { action:'CHECKOUT_CLOSE received', detail:'กลับไป idle screen' },
+      { action:'Reconnect: last state', detail:'Server เก็บ last state → ส่ง replay เมื่อ reconnect' },
+    ]
+  },
+  {
+    icon:'💸', title:'Refund / คืนเงิน', sub:'OTP via Telegram',
+    steps:[
+      { action:'Admin → POST refund/request-otp', detail:'Backend ดึง telegram_chat_id ของร้าน' },
+      { action:'ส่ง OTP ทาง Telegram', detail:'6-digit OTP, expiry 5 minutes' },
+      { action:'Admin input OTP', detail:'POST refund/confirm-otp' },
+      { action:'Validate OTP + expiry', detail:'UPDATE order.status = "refunded"' },
+      { action:'Broadcast notification', detail:'WS → admin POS แจ้งเตือน' },
+    ]
+  },
+  {
+    icon:'⭐', title:'Membership Points', sub:'Earn → Tier → Birthday',
+    steps:[
+      { action:'Order สร้าง → calcPointsEarned()', detail:'total × points_per_10_baht config' },
+      { action:'เพิ่ม points → update total_spent', detail:'customers.points += earned' },
+      { action:'Tier recalculate', detail:'bronze → silver (tier_silver threshold) → gold (tier_gold)' },
+      { action:'Birthday benefit check', detail:'ถ้า today == birthday → free item / bonus points' },
+      { action:'Redeem points', detail:'points_redeemed → deduct from total ใน checkout' },
+    ]
+  },
+  {
+    icon:'📤', title:'Stock Withdrawal (เบิกของ)', sub:'Staff request → Admin approve',
+    steps:[
+      { action:'Staff → /withdraw', detail:'เลือก type=product/consumable + qty' },
+      { action:'POST /withdrawals', detail:'สร้าง withdrawal_request status=pending' },
+      { action:'WS broadcast', detail:'→ Admin POS รับ WITHDRAWAL_REQUEST notification' },
+      { action:'Admin → WithdrawalApprovalModal', detail:'ดูรายการ, approve/reject' },
+      { action:'PATCH /withdrawals/:id/approve', detail:'Deduct stock → status=approved' },
+    ]
+  },
+  {
+    icon:'📸', title:'Sales Snapshot (Cron)', sub:'Automated daily/monthly snapshots',
+    steps:[
+      { action:'Cron: ทุกวัน 00:05 BKK', detail:'รัน snapshot job' },
+      { action:'คำนวณ revenue, order_count', detail:'ต่อ period_type: day/month/year' },
+      { action:'UPDATE shop_sales_snapshots', detail:'upsert per shop_id + period_key' },
+      { action:'คำนวณ rank', detail:'เปรียบเทียบ revenue ระหว่างร้าน' },
+      { action:'Audit retention cleanup', detail:'ลบ audit_logs เก่ากว่า 7 วัน' },
+    ]
+  },
+];
+
+const CSS_FILES = [
+  { name:'styles/globals.css', desc:'Reset, typography, scrollbar, keyframes', scope:'Global', classes:['body', 'h1–h6', '::-webkit-scrollbar', '@keyframes'] },
+  { name:'styles/variables.css', desc:'CSS tokens: สี, font, shadow, radius, transition', scope:'Global', classes:['--color-bg', '--color-primary', '--font-sans', '--radius', '--shadow-md'] },
+  { name:'styles/components/button.css', desc:'ปุ่มทุกชนิด', scope:'Global', classes:['btn-primary', 'btn-ghost', 'btn-danger'] },
+  { name:'styles/components/input.css', desc:'input field, search box', scope:'Global', classes:['input', 'input--error'] },
+  { name:'styles/components/modal.css', desc:'Modal overlay + content', scope:'Global', classes:['modal-overlay', 'modal-content'] },
+  { name:'styles/components/header.css', desc:'Top navigation bar', scope:'Global', classes:['auth-header', 'auth-header__nav', 'auth-header__right', 'auth-header__logout'] },
+  { name:'styles/pages/pos.css', desc:'หน้า POS ทั้งหมด + modals', scope:'Global', classes:['pos-wrap', 'pos-topnav', 'pos-products', 'pos-cart-panel', 'cm', 'sm2', 'pos-today-orders'] },
+  { name:'styles/pages/dashboard.css', desc:'Dashboard + SalesReport', scope:'Global', classes:['dash', 'dash__body', 'dash__kpi-row', 'dash__chart-row', 'dash__pdf-container'] },
+  { name:'styles/pages/admin.css', desc:'Admin + Stock tabs', scope:'Global', classes:['page-admin', 'page-admin__tabs', 'page-admin__content', 'stk__root', 'stk__table'] },
+  { name:'styles/pages/pay.css', desc:'Customer Display', scope:'Global', classes:['pd-wrap', 'pd-idle', 'pd-cash', 'pd-qr', 'pd-status'] },
+  { name:'styles/pages/receipt.css', desc:'ใบเสร็จ /receipt/[token]', scope:'Global', classes:['rcpt-page', 'rcpt-bill', 'rcpt-header', 'rcpt-items', 'rcpt-totals'] },
+  { name:'styles/pages/login.css', desc:'Login + QR Login', scope:'Global', classes:['page-login', 'page-login-qr'] },
+  { name:'styles/pages/reports.css', desc:'P&L Reports', scope:'Per-page', classes:['rpt__page', 'rpt__filters', 'rpt__kpi-row', 'rpt-grid', 'rpt-row', 'rpt-cell', 'rpt__print-header'] },
+  { name:'styles/pages/stock.css', desc:'Stock Page (/stock)', scope:'Per-page', classes:['stk__root (inline)', 'stk__controls', 'stk__qty-badge'] },
+  { name:'styles/pages/withdraw.css', desc:'Withdraw Page', scope:'Per-page', classes:['withdraw-wrap'] },
+  { name:'styles/pages/notifications.css', desc:'Notifications Page', scope:'Per-page', classes:['(notif-page)'] },
+  { name:'styles/components/promotions-panel.css', desc:'PromoPanel (POS sidebar)', scope:'Component', classes:['promo-panel', 'promo-panel__item'] },
+  { name:'styles/components/customers-panel.css', desc:'CustomersPanel (POS sidebar)', scope:'Component', classes:['cust-panel', 'cust-panel__search'] },
+  { name:'components/ThemeSwitcherStyles.tsx', desc:'ThemeSwitcher CSS-in-JS', scope:'Component', classes:['theme-switcher', 'theme-switcher--topnav', 'theme-switcher__dropdown'] },
+];
+
+const CSS_VARS = [
+  { swatch:'#1a0f0a', name:'--color-bg', desc:'สีพื้นหลังหลัก' },
+  { swatch:'#1f1510', name:'--color-bg-card', desc:'สีพื้น card' },
+  { swatch:'#f97316', name:'--color-primary', desc:'สี primary (orange)' },
+  { swatch:'#ea6a0a', name:'--color-primary-hover', desc:'primary hover' },
+  { swatch:'#f1f0ee', name:'--color-text', desc:'ตัวหนังสือหลัก' },
+  { swatch:'#9f9189', name:'--color-text-muted', desc:'ตัวหนังสือรอง' },
+  { swatch:'#3d2e26', name:'--color-border', desc:'border ทั่วไป' },
+  { swatch:'#10b981', name:'--color-success', desc:'สีเขียว success' },
+  { swatch:'#ef4444', name:'--color-error', desc:'สีแดง error' },
+  { swatch:'#f59e0b', name:'--color-warning', desc:'สีเหลือง warning' },
+  { swatch:'#6366f1', name:'--color-purple', desc:'สีม่วง' },
+  { swatch:'#0ea5e9', name:'--color-info', desc:'สีฟ้า info' },
+];
+
+const QUICKFIXES = [
+  ['สีพื้นหลังหน้าเว็บ', 'styles/variables.css', '--color-bg'],
+  ['สี primary button/accent', 'styles/variables.css', '--color-primary'],
+  ['สีตัวหนังสือหลัก', 'styles/variables.css', '--color-text'],
+  ['ขนาด font หลัก', 'styles/variables.css', '--text-sm, --text-base'],
+  ['border radius', 'styles/variables.css', '--radius, --radius-lg'],
+  ['ความเร็ว animation', 'styles/variables.css', '--duration-fast, --duration-normal'],
+  ['TopNav POS', 'styles/pages/pos.css', '.pos-topnav'],
+  ['ตะกร้าสินค้า', 'styles/pages/pos.css', '.pos-cart-panel'],
+  ['Product card POS', 'styles/pages/pos.css', '.pos-product-card'],
+  ['Modal ชำระเงิน', 'styles/pages/pos.css', '.cm (CheckoutModal)'],
+  ['Modal สำเร็จ', 'styles/pages/pos.css', '.sm2 (SuccessModal)'],
+  ['แผงออเดอร์วันนี้', 'styles/pages/pos.css', '.pos-today-orders'],
+  ['Dashboard KPI cards', 'styles/pages/dashboard.css', '.dash__kpi-row, .dash__kpi-card'],
+  ['Dashboard chart area', 'styles/pages/dashboard.css', '.dash__chart-row'],
+  ['Print/PDF container', 'styles/pages/dashboard.css', '.dash__pdf-container'],
+  ['Admin tab bar', 'styles/pages/admin.css', '.page-admin__tabs'],
+  ['Admin product list', 'styles/pages/admin.css', '.page-admin__list-item'],
+  ['Stock table', 'styles/pages/admin.css', '.stk__table'],
+  ['Stock qty badge', 'styles/pages/admin.css', '.stk__qty-badge--ok/warn/low'],
+  ['Reports filter bar', 'styles/pages/reports.css', '.rpt__filters'],
+  ['Reports KPI', 'styles/pages/reports.css', '.rpt__kpi-row, .rpt__kpi-card'],
+  ['Reports table', 'styles/pages/reports.css', '.rpt-grid, .rpt-row, .rpt-cell'],
+  ['Reports print header', 'styles/pages/reports.css', '.rpt__print-header'],
+  ['Customer Display idle', 'styles/pages/pay.css', '.pd-idle'],
+  ['Customer Display QR', 'styles/pages/pay.css', '.pd-qr'],
+  ['ใบเสร็จ (receipt)', 'styles/pages/receipt.css', '.rcpt-bill, .rcpt-items'],
+  ['Header/TopNav', 'styles/components/header.css', '.auth-header'],
+  ['ThemeSwitcher', 'components/ThemeSwitcherStyles.tsx', '.theme-switcher'],
+  ['Modal overlay', 'styles/components/modal.css', '.modal-overlay, .modal-content'],
+  ['Notification bell', 'styles/components/header.css', '.auth-header__right (bell inside)'],
+  ['Login page', 'styles/pages/login.css', '.page-login'],
+  ['Landing page', 'styles/pages/home.css', '.lp-root, .lp-*'],
+];
+
+// ══════════════════════════════════════════════════════════════
+//  RENDER
+// ══════════════════════════════════════════════════════════════
+
+function renderPages() {
+  const grid = document.getElementById('pages-grid');
+  grid.innerHTML = PAGES.map(p => `
+    <div class="page-card ${p.highlight ? 'page-card--highlight' : ''}" style="${p.highlight ? 'border-color:rgba(0,212,255,0.3);' : ''}">
+      <div class="page-card__route">${p.route}</div>
+      <div class="page-card__name">${p.name}</div>
+      <div class="page-card__info">
+        <div class="page-card__row"><span class="page-card__key">CSS root</span><span class="page-card__val">${p.class}</span></div>
+        <div class="page-card__row"><span class="page-card__key">file</span><span class="page-card__val">${p.file}</span></div>
+        <div class="page-card__row"><span class="page-card__key">css file</span><span class="page-card__val">${p.css}</span></div>
+      </div>
+      <div class="page-card__badges">
+        <span class="badge ${p.auth === 'public' ? 'badge--gray' : p.auth === 'JWT' ? 'badge--cyan' : p.auth === 'cashier+' ? 'badge--teal' : p.auth === 'manager+' ? 'badge--amber' : p.auth === 'owner' ? 'badge--red' : 'badge--purple'}">${p.auth}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderComponents() {
+  document.getElementById('comp-grid').innerHTML = COMPONENTS.map(c => `
+    <div class="comp-row">
+      <div class="comp-row__name">${c.name}</div>
+      <div class="comp-row__file">${c.file}</div>
+      <div class="comp-row__desc">${c.desc}</div>
+    </div>
+  `).join('');
+
+  document.getElementById('admin-tabs-grid').innerHTML = ADMIN_TABS.map(c => `
+    <div class="comp-row">
+      <div class="comp-row__name">${c.name}</div>
+      <div class="comp-row__file">${c.file}</div>
+      <div class="comp-row__desc">${c.desc}</div>
+    </div>
+  `).join('');
+}
+
+function renderAPI() {
+  const methodClass = m => ({GET:'method--get',POST:'method--post',PATCH:'method--patch',DEL:'method--del',PUT:'method--patch',WS:'method--ws'}[m]||'method--get');
+
+  document.getElementById('api-groups').innerHTML = API_GROUPS.map((g,i) => `
+    <div class="api-group">
+      <div class="api-group__head" onclick="toggleGroup(this)">
+        <span class="api-group__prefix">${g.prefix}</span>
+        <span class="api-group__label">${g.label}</span>
+        <span class="badge badge--${g.auth.includes('No') ? 'gray' : g.auth.includes('admin') ? 'red' : g.auth.includes('Feature') ? 'purple' : g.auth.includes('cashier') ? 'teal' : 'cyan'}" style="margin-left:auto">${g.auth}</span>
+      </div>
+      <div class="api-group__body">
+        ${g.endpoints.map(e => `
+          <div class="api-endpoint">
+            <span class="method ${methodClass(e.m)}">${e.m}</span>
+            <span class="ep-path">${e.path}</span>
+            <span class="ep-desc">${e.desc}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderFlows() {
+  document.getElementById('flows-grid').innerHTML = FLOWS.map(f => `
+    <div class="flow-card">
+      <div class="flow-card__head">
+        <span class="flow-card__icon">${f.icon}</span>
+        <div>
+          <div class="flow-card__title">${f.title}</div>
+          <div class="flow-card__sub">${f.sub}</div>
+        </div>
+      </div>
+      <div class="flow-card__body">
+        <div class="flow-steps">
+          ${f.steps.map((s,i) => `
+            <div class="flow-step">
+              <div class="flow-step__num">${i+1}</div>
+              <div class="flow-step__line"></div>
+              <div class="flow-step__content">
+                <div class="flow-step__action">${s.action}</div>
+                <div class="flow-step__detail">${s.detail}</div>
+                ${s.code ? `<span class="flow-step__code">${s.code}</span>` : ''}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderCSS() {
+  document.getElementById('css-files-grid').innerHTML = CSS_FILES.map(f => `
+    <div class="css-file-card">
+      <div class="css-file-card__name">${f.name}</div>
+      <div class="css-file-card__desc">${f.desc} · <span style="color:var(--${f.scope==='Global'?'green':f.scope==='Per-page'?'amber':'purple'})">${f.scope}</span></div>
+      <div class="css-file-card__classes">
+        ${f.classes.map((c,i) => `<span class="class-tag ${i===0?'class-tag--root':''}">${c}</span>`).join('')}
+      </div>
+    </div>
+  `).join('');
+
+  document.getElementById('vars-grid').innerHTML = CSS_VARS.map(v => `
+    <div class="var-row">
+      <div class="var-row__swatch" style="background:${v.swatch}"></div>
+      <span class="var-row__name">${v.name}</span>
+      <span class="var-row__desc">${v.desc}</span>
+    </div>
+  `).join('');
+
+  const tbody = document.getElementById('quickfix-body');
+  tbody.innerHTML = QUICKFIXES.map(([w,f,c]) => `
+    <tr>
+      <td>${w}</td>
+      <td class="mono dim">${f}</td>
+      <td class="mono hi">${c}</td>
+    </tr>
+  `).join('');
+}
+
+// ══════════════════════════════════════════════════════════════
+//  TABS
+// ══════════════════════════════════════════════════════════════
+
+function switchTab(idx) {
+  document.querySelectorAll('.tab-panel').forEach((p,i) => p.classList.toggle('active', i===idx));
+  document.querySelectorAll('.nav-btn').forEach((b,i) => b.classList.toggle('active', i===idx));
+
+  // Lazy render
+  if (idx === 2 && !document.getElementById('pages-grid').children.length) { renderPages(); renderComponents(); }
+  if (idx === 3 && !document.getElementById('api-groups').children.length) renderAPI();
+  if (idx === 4 && !document.getElementById('flows-grid').children.length) renderFlows();
+  if (idx === 5 && !document.getElementById('css-files-grid').children.length) renderCSS();
+}
+
+function toggleGroup(head) {
+  const body = head.nextElementSibling;
+  body.style.display = body.style.display === 'none' ? '' : 'none';
+}
+
+// ══════════════════════════════════════════════════════════════
+//  SEARCH
+// ══════════════════════════════════════════════════════════════
+
+let searchTimeout;
+function doSearch(q) {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => applySearch(q.trim().toLowerCase()), 200);
+}
+
+function applySearch(q) {
+  // Remove previous highlights
+  document.querySelectorAll('.hl').forEach(el => {
+    el.outerHTML = el.textContent;
+  });
+  document.querySelectorAll('.hidden-by-search').forEach(el => el.classList.remove('hidden-by-search'));
+
+  if (!q) return;
+
+  // Search across all visible tab content
+  const searchableSelectors = [
+    '.page-card', '.comp-row', '.table-card', '.stack-row',
+    '.api-endpoint', '.flow-step', '.css-file-card', '.var-row',
+    'tr', '.db-group'
+  ];
+
+  searchableSelectors.forEach(sel => {
+    document.querySelectorAll(sel).forEach(el => {
+      if (el.textContent.toLowerCase().includes(q)) {
+        // Highlight
+        highlightText(el, q);
+      } else {
+        if (!['TR', 'TABLE'].includes(el.tagName)) {
+          // Only hide leaf-level cards
+          if (!el.querySelector('.page-card, .comp-row, .table-card')) {
+            el.classList.add('hidden-by-search');
+          }
+        }
+      }
+    });
+  });
+}
+
+function highlightText(el, q) {
+  // Simple highlight on text nodes
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  nodes.forEach(node => {
+    const idx = node.textContent.toLowerCase().indexOf(q);
+    if (idx !== -1) {
+      const span = document.createElement('span');
+      span.innerHTML =
+        escapeHtml(node.textContent.slice(0, idx)) +
+        `<span class="hl">${escapeHtml(node.textContent.slice(idx, idx+q.length))}</span>` +
+        escapeHtml(node.textContent.slice(idx+q.length));
+      node.parentNode.replaceChild(span, node);
+    }
+  });
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// keyboard shortcut
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+    e.preventDefault();
+    document.getElementById('search-input').focus();
+  }
+  if (e.key === 'Escape') {
+    document.getElementById('search-input').value = '';
+    doSearch('');
+  }
+});
+
+// ══════════════════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════════════════
+// Tab 0 (stack) is pre-rendered HTML. Others lazy-rendered.
+
+// Staggered animation for stack rows
+document.querySelectorAll('.stack-row').forEach((el, i) => {
+  el.style.animationDelay = `${i * 0.05}s`;
+});
+</script>
+</body>
+</html>

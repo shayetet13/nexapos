@@ -1,0 +1,350 @@
+/* ── Promotions Panel ─────────────────────────────────────────── */
+.promo-panel {
+  position: relative;
+  width: min(460px, 96vw);
+  max-height: min(82dvh, 640px);
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-light);
+  border-radius: 20px;
+  box-shadow: var(--shadow-xl);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Header ──────────────────────────────────────────────────── */
+.promo-panel__header {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px 14px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-subtle);
+}
+
+.promo-panel__title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-text);
+  letter-spacing: -0.01em;
+}
+
+.promo-panel__close {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--color-border-light);
+  background: var(--color-surface2);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  transition: background 0.15s, color 0.15s;
+}
+.promo-panel__close:hover {
+  background: var(--color-surface3);
+  color: var(--color-text);
+}
+
+/* ── Scrollable body ─────────────────────────────────────────── */
+.promo-panel__body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.promo-panel__body::-webkit-scrollbar        { width: 4px; }
+.promo-panel__body::-webkit-scrollbar-track  { background: transparent; }
+.promo-panel__body::-webkit-scrollbar-thumb  {
+  background: var(--color-border-light);
+  border-radius: 2px;
+}
+
+/* ── Status messages ─────────────────────────────────────────── */
+.promo-panel__error {
+  margin: 16px 20px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--color-error-bg);
+  border: 1px solid var(--color-error-border);
+  color: var(--color-text-error);
+  font-size: 0.85rem;
+}
+
+.promo-panel__loading {
+  margin: 24px auto;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+/* ── Section ─────────────────────────────────────────────────── */
+.promo-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.promo-section__label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+
+.promo-section__label-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.promo-section__label-dot--discount { background: var(--color-primary); }
+.promo-section__label-dot--combo    { background: var(--color-purple); }
+
+.promo-section__line {
+  flex: 1;
+  height: 1px;
+  background: var(--color-border);
+}
+
+.promo-section__empty {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  text-align: center;
+  padding: 12px 0;
+}
+
+/* ── Discount grid: 3-col ────────────────────────────────────── */
+.promo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+/* ── Discount card ───────────────────────────────────────────── */
+.promo-card {
+  position: relative;
+  border-radius: 14px;
+  border: 1.5px solid var(--color-border-light);
+  background: var(--color-surface2);
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  cursor: pointer;
+  text-align: center;
+  transition: transform 0.1s ease-out, box-shadow 0.1s ease-out,
+              border-color 0.1s ease-out, background 0.1s ease-out;
+  min-height: 72px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.promo-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-primary-sm);
+  border-color: var(--color-border-active);
+  background: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface2));
+}
+
+.promo-card:active {
+  transform: scale(0.96);
+}
+
+.promo-card__value {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--color-primary);
+  line-height: 1;
+}
+
+.promo-card__name {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  line-height: 1.2;
+  word-break: break-word;
+}
+
+/* ── Combo list: full-width rows ─────────────────────────────── */
+.promo-combo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.promo-card--combo {
+  flex-direction: row;
+  align-items: center;
+  padding: 12px 16px;
+  min-height: 60px;
+  border-radius: 14px;
+  border: 1.5px solid color-mix(in srgb, var(--color-purple) 30%, var(--color-border));
+  background: color-mix(in srgb, var(--color-purple) 6%, var(--color-surface2));
+  gap: 0;
+  text-align: left;
+  justify-content: flex-start;
+}
+
+.promo-card--combo:hover {
+  border-color: var(--color-purple);
+  background: color-mix(in srgb, var(--color-purple) 12%, var(--color-surface2));
+}
+
+.promo-card--combo .promo-card__info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.promo-card--combo .promo-card__name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.promo-card--combo .promo-card__meta {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.promo-card--combo .promo-card__price {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--color-purple);
+  white-space: nowrap;
+}
+
+.promo-card__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--color-purple) 15%, transparent);
+  color: var(--color-purple);
+  margin-left: 12px;
+  white-space: nowrap;
+}
+
+/* ── Combo row wrapper ────────────────────────────────────────── */
+.promo-combo-row {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.promo-combo-row .promo-card--combo {
+  flex: 1;
+  padding-right: 48px; /* room for view button */
+}
+
+/* ── View items button ────────────────────────────────────────── */
+.promo-combo-view-btn {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1.5px solid color-mix(in srgb, var(--color-purple) 40%, var(--color-border));
+  background: color-mix(in srgb, var(--color-purple) 10%, var(--color-surface2));
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+  z-index: 2;
+  flex-shrink: 0;
+}
+
+.promo-combo-view-btn:hover {
+  background: color-mix(in srgb, var(--color-purple) 20%, var(--color-surface2));
+  border-color: var(--color-purple);
+  transform: translateY(-50%) scale(1.1);
+}
+
+.promo-combo-view-btn--active {
+  background: color-mix(in srgb, var(--color-purple) 25%, var(--color-surface2));
+  border-color: var(--color-purple);
+}
+
+/* ── Items dropdown ───────────────────────────────────────────── */
+.promo-combo-items {
+  margin-top: 4px;
+  border-radius: 12px;
+  border: 1.5px solid color-mix(in srgb, var(--color-purple) 35%, var(--color-border));
+  background: color-mix(in srgb, var(--color-purple) 5%, var(--color-surface2));
+  overflow: hidden;
+  animation: promo-items-in 0.18s ease-out;
+}
+
+@keyframes promo-items-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.promo-combo-items__header {
+  padding: 8px 14px 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-purple);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-purple) 20%, var(--color-border));
+}
+
+.promo-combo-items__list {
+  list-style: none;
+  padding: 6px 0 8px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.promo-combo-items__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 14px;
+  font-size: 0.85rem;
+  color: var(--color-text);
+  transition: background 0.1s;
+}
+
+.promo-combo-items__item:hover {
+  background: color-mix(in srgb, var(--color-purple) 8%, transparent);
+}
+
+.promo-combo-items__item-name {
+  font-weight: 500;
+  flex: 1;
+}
+
+.promo-combo-items__item-qty {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-purple);
+  margin-left: 12px;
+  white-space: nowrap;
+}
