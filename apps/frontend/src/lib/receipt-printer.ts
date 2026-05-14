@@ -157,11 +157,11 @@ export async function renderReceiptToCanvas(
   const innerW = W - PAD * 2;
 
   const FONT = 'Sarabun, Tahoma, "Noto Sans Thai", sans-serif';
-  // 58mm (384 dots): smallSize 20px=2.5mm, fontSize 26px=3.3mm, bigSize 34px=4.3mm
-  // 80mm (576 dots): smallSize 24px=3mm,   fontSize 30px=3.8mm, bigSize 40px=5mm
-  const fontSize  = widthDots === 384 ? 26 : 30;
-  const smallSize = widthDots === 384 ? 20 : 24;
-  const bigSize   = widthDots === 384 ? 34 : 40;
+  // 58mm (384 dots): smallSize 24px=3mm, fontSize 30px=3.8mm, bigSize 38px=4.8mm
+  // 80mm (576 dots): smallSize 28px=3.5mm, fontSize 34px=4.3mm, bigSize 44px=5.5mm
+  const fontSize  = widthDots === 384 ? 30 : 34;
+  const smallSize = widthDots === 384 ? 24 : 28;
+  const bigSize   = widthDots === 384 ? 38 : 44;
 
   // Two-pass: pass 1 = measure height by simulating draw, pass 2 = actual draw
   const tmp = document.createElement('canvas');
@@ -244,6 +244,8 @@ export async function renderReceiptToCanvas(
     blocks.push({ kind: 'qr', canvas: qrCanvas, label: '' });
   }
 
+  blocks.push({ kind: 'spacer', h: 8 });
+  blocks.push({ kind: 'text', text: 'ขอบคุณที่ใช้บริการ', font: FONT, size: fontSize, align: 'center', bold: true });
   blocks.push({ kind: 'spacer', h: 8 });
 
   // ── Measure pass ──
