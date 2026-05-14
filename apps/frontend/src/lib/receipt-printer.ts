@@ -147,9 +147,9 @@ export async function renderReceiptToCanvas(
 ): Promise<HTMLCanvasElement> {
   // Make sure Sarabun is loaded before measuring/drawing
   if (typeof document !== 'undefined' && document.fonts) {
-    await document.fonts.load('14px Sarabun');
-    await document.fonts.load('bold 18px Sarabun');
-    await document.fonts.load('bold 24px Sarabun');
+    await document.fonts.load('20px Sarabun');
+    await document.fonts.load('bold 26px Sarabun');
+    await document.fonts.load('bold 34px Sarabun');
   }
 
   const W = widthDots;
@@ -157,9 +157,11 @@ export async function renderReceiptToCanvas(
   const innerW = W - PAD * 2;
 
   const FONT = 'Sarabun, Tahoma, "Noto Sans Thai", sans-serif';
-  const fontSize = widthDots === 384 ? 18 : 20;
-  const smallSize = widthDots === 384 ? 14 : 16;
-  const bigSize = widthDots === 384 ? 24 : 28;
+  // 58mm (384 dots): smallSize 20px=2.5mm, fontSize 26px=3.3mm, bigSize 34px=4.3mm
+  // 80mm (576 dots): smallSize 24px=3mm,   fontSize 30px=3.8mm, bigSize 40px=5mm
+  const fontSize  = widthDots === 384 ? 26 : 30;
+  const smallSize = widthDots === 384 ? 20 : 24;
+  const bigSize   = widthDots === 384 ? 34 : 40;
 
   // Two-pass: pass 1 = measure height by simulating draw, pass 2 = actual draw
   const tmp = document.createElement('canvas');
@@ -243,8 +245,6 @@ export async function renderReceiptToCanvas(
   }
 
   blocks.push({ kind: 'spacer', h: 8 });
-  blocks.push({ kind: 'text', text: 'ขอบคุณที่ใช้บริการ', font: FONT, size: fontSize, align: 'center' });
-  blocks.push({ kind: 'text', text: `NexaPos · ${data.shop_name}`, font: FONT, size: smallSize - 2, align: 'center' });
 
   // ── Measure pass ──
   const lineHeight = (size: number) => Math.ceil(size * 1.35);
