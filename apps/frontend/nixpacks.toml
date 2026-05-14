@@ -1,0 +1,20 @@
+# Railway / Nixpacks — Frontend (Next.js 15)
+# Root Directory in Railway dashboard: apps/frontend
+# ../../ resolves to the monorepo root (/app) where pnpm-workspace.yaml lives
+
+[phases.setup]
+nixPkgs = ["nodejs_22"]
+
+[phases.install]
+cmds = [
+  "npm install -g pnpm@9.15.0",
+  "pnpm --dir ../.. install --frozen-lockfile",
+]
+
+[phases.build]
+cmds = [
+  "pnpm --dir ../.. --filter @nexapos/frontend build",
+]
+
+[start]
+cmd = "pnpm start"

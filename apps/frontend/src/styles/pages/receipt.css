@@ -1,0 +1,390 @@
+/* ═══════════════════════════════════════════════════════
+   Receipt page — thermal bill style
+   ═══════════════════════════════════════════════════════ */
+
+/* Sarabun has full Thai glyph coverage. Tahoma is a system fallback
+   present on virtually every Windows machine (the most common POS host)
+   and also covers Thai. Courier New does NOT have Thai glyphs and was
+   silently breaking Thai text on thermal printers. */
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap');
+
+.rcpt-page {
+  min-height: 100dvh;
+  background: #f0f0f0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 16px 32px;
+  font-family: 'Sarabun', 'Tahoma', 'Noto Sans Thai', sans-serif;
+}
+
+/* ── The printable bill ── */
+.rcpt-bill {
+  width: 100%;
+  max-width: 360px;
+  background: #fff;
+  color: #111;
+  border-radius: 4px;
+  padding: 28px 24px 20px;
+  box-shadow:
+    0 4px 6px rgba(0,0,0,0.07),
+    0 12px 40px rgba(0,0,0,0.10),
+    /* torn edge top */
+    0 -2px 0 #fff,
+    0 2px 2px rgba(0,0,0,0.04);
+  position: relative;
+}
+
+/* Torn edge effect — top */
+.rcpt-bill::before {
+  content: '';
+  position: absolute;
+  top: -10px;
+  left: 0;
+  right: 0;
+  height: 12px;
+  background: radial-gradient(circle at 50% 0%, #f0f0f0 6px, transparent 7px) 0 0 / 20px 12px repeat-x,
+              #fff;
+}
+
+/* Torn edge effect — bottom */
+.rcpt-bill::after {
+  content: '';
+  position: absolute;
+  bottom: -10px;
+  left: 0;
+  right: 0;
+  height: 12px;
+  background: radial-gradient(circle at 50% 100%, #f0f0f0 6px, transparent 7px) 0 12px / 20px 12px repeat-x,
+              #fff;
+}
+
+/* ── Header ── */
+.rcpt-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.rcpt-logo {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  margin-bottom: 4px;
+  border-radius: 6px;
+}
+
+.rcpt-shop-name {
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #111;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.rcpt-branch {
+  font-size: 0.8rem;
+  color: #555;
+  margin: 0;
+}
+
+.rcpt-address {
+  font-size: 0.72rem;
+  color: #777;
+  margin: 0;
+}
+
+.rcpt-shop-info {
+  font-size: 0.70rem;
+  color: #666;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.rcpt-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #222;
+  margin: 2px 0;
+  text-transform: uppercase;
+}
+
+/* ── Dividers ── */
+.rcpt-divider {
+  width: 100%;
+  margin: 8px 0;
+  border: none;
+}
+
+.rcpt-divider--dashed {
+  border-top: 1.5px dashed #ccc;
+}
+
+.rcpt-divider--solid {
+  border-top: 2px solid #111;
+}
+
+/* ── Order meta ── */
+.rcpt-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.78rem;
+  color: #333;
+}
+
+.rcpt-meta-row {
+  display: flex;
+  justify-content: space-between;
+}
+
+.rcpt-meta-value {
+  font-weight: 700;
+  color: #111;
+}
+
+/* ── Items table ── */
+.rcpt-items {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  color: #222;
+}
+
+.rcpt-items thead tr {
+  border-bottom: 1px solid #ccc;
+}
+
+.rcpt-items th,
+.rcpt-items td {
+  padding: 4px 2px;
+  vertical-align: top;
+}
+
+.rcpt-items th {
+  font-weight: 700;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #555;
+}
+
+.rcpt-items__name { width: 45%; text-align: left; }
+.rcpt-items__qty  { width: 12%; text-align: center; }
+.rcpt-items__price{ width: 20%; text-align: right; }
+.rcpt-items__sub  { width: 23%; text-align: right; font-weight: 600; }
+
+.rcpt-item-note {
+  font-size: 0.72rem;
+  color: #6b7280;
+  font-style: italic;
+  margin-top: 2px;
+}
+
+@media print {
+  .rcpt-item-note { color: #333; }
+}
+
+.rcpt-items tbody tr:hover { background: rgba(0,0,0,0.02); }
+
+/* ── Totals ── */
+.rcpt-totals {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: #333;
+}
+
+.rcpt-total-row {
+  display: flex;
+  justify-content: space-between;
+}
+
+.rcpt-total-row--grand {
+  font-size: 1rem;
+  font-weight: 900;
+  color: #000;
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 2px solid #111;
+}
+
+/* ── QR section ── */
+.rcpt-qr-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.rcpt-qr-label {
+  font-size: 0.7rem;
+  color: #777;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.rcpt-qr-box {
+  background: #fff;
+  padding: 8px;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Footer ── */
+.rcpt-footer {
+  text-align: center;
+  margin-top: 8px;
+  font-size: 0.75rem;
+  color: #555;
+  line-height: 1.6;
+}
+
+.rcpt-footer p { margin: 0; }
+.rcpt-footer-sub { color: #999; font-size: 0.68rem; }
+
+/* ── Actions (buttons outside the bill) ── */
+.rcpt-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 360px;
+  margin-top: 24px;
+}
+
+.rcpt-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px 20px;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  transition: transform 0.1s, opacity 0.15s;
+  letter-spacing: 0.02em;
+}
+
+.rcpt-btn:active { transform: scale(0.97); }
+.rcpt-btn:disabled { opacity: 0.55; cursor: default; }
+
+.rcpt-btn--save {
+  background: #111;
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+}
+
+.rcpt-btn--save:hover:not(:disabled) { background: #222; }
+
+.rcpt-btn--secondary {
+  background: #f0f0f0;
+  color: #444;
+  border: 1px solid #ddd;
+}
+
+.rcpt-btn--secondary:hover:not(:disabled) { background: #e4e4e4; }
+
+.rcpt-btn--print {
+  background: #1d4ed8;
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(29,78,216,0.25);
+}
+.rcpt-btn--print:hover:not(:disabled) { background: #1e40af; }
+
+/* ── Print media ── */
+@media print {
+  /* 72mm = safe printable width inside an 80mm thermal roll. The default
+     A4 driver behavior crops content; auto height + zero margin lets long
+     receipts flow across multiple feed lengths instead of being cut. */
+  @page {
+    size: 72mm auto;
+    margin: 0;
+  }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    width: 72mm;
+    color: #000;
+    font-family: 'Sarabun', 'Tahoma', 'Noto Sans Thai', sans-serif !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .rcpt-page {
+    background: #fff;
+    padding: 0;
+    min-height: unset;
+    width: 100%;
+    display: block;
+    font-family: 'Sarabun', 'Tahoma', 'Noto Sans Thai', sans-serif !important;
+  }
+  .rcpt-actions { display: none !important; }
+  .rcpt-bill {
+    box-shadow: none;
+    border: none;
+    border-radius: 0;
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    padding: 3mm 2mm;
+    /* Do NOT set page-break-inside: avoid — it forces long receipts to
+       fit in one page and the bottom gets clipped. Let the printer
+       feed paper continuously instead. */
+  }
+  /* Torn-edge decorations waste paper rows on thermal printers */
+  .rcpt-bill::before,
+  .rcpt-bill::after { display: none !important; }
+}
+
+/* ── Skeleton ── */
+.rcpt-bill--skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.rcpt-skel {
+  height: 14px;
+  background: linear-gradient(90deg, #e8e8e8 25%, #f5f5f5 50%, #e8e8e8 75%);
+  background-size: 200% 100%;
+  border-radius: 4px;
+  animation: rcpt-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes rcpt-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── Error state ── */
+.rcpt-error {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 32px;
+  text-align: center;
+  background: #f0f0f0;
+  font-family: 'Sarabun', 'Tahoma', sans-serif;
+}
+
+.rcpt-error__icon { font-size: 3rem; }
+.rcpt-error__msg  { font-size: 1.1rem; font-weight: 700; color: #333; margin: 0; }
+.rcpt-error__sub  { font-size: 0.85rem; color: #888; margin: 0; }
