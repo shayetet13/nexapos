@@ -919,25 +919,25 @@ export function POSContent({ experience = 'retail' }: { experience?: PosExperien
     const char = btCharRef.current;
     if (!char) return false;
     try {
-      // Use 512-byte chunks (BLE 4.2+ characteristic max value length).
-      // writeValueWithoutResponse is preferred — no ACK round-trip needed,
-      // throughput is ~10x faster than writeValue for large bitmap data.
-      const CHUNK = 512;
+      // 182 bytes = safe max for BLE 4.2+ after MTU negotiation (MTU 185 − 3 ATT header).
+      // Delay is sized to the printer UART drain time at 115200 baud:
+      //   182 bytes × 10 bits ÷ 115200 ≈ 15.8ms → use 20ms for margin.
+      // This is 2× faster than the old 150-byte/40ms scheme while staying reliable.
+      const CHUNK = 182;
       const props = char.properties ?? {};
       const canNoResp = props.writeWithoutResponse === true &&
         typeof char.writeValueWithoutResponse === 'function';
 
       if (canNoResp) {
-        // Fire-and-forget: no ACK, very fast. 10ms between chunks so the
-        // printer's UART FIFO doesn't overflow (most printers ≥ 4 KB buffer).
         for (let i = 0; i < data.length; i += CHUNK) {
           await char.writeValueWithoutResponse(data.slice(i, Math.min(i + CHUNK, data.length)));
-          await new Promise(r => setTimeout(r, 10));
+          await new Promise(r => setTimeout(r, 20));
         }
       } else {
-        // ACK-based: await already paces writes — no extra delay needed.
+        // ACK already provides round-trip pacing; small extra delay for UART drain.
         for (let i = 0; i < data.length; i += CHUNK) {
           await char.writeValue(data.slice(i, Math.min(i + CHUNK, data.length)));
+          await new Promise(r => setTimeout(r, 20));
         }
       }
       // Let the printer finish processing the cut command before we return.
