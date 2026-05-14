@@ -919,28 +919,29 @@ export function POSContent({ experience = 'retail' }: { experience?: PosExperien
     const char = btCharRef.current;
     if (!char) return false;
     try {
-      // BLE characteristic MTU is typically 20–185 bytes per write.
-      // CHUNK=150 is safe for most thermal printers; larger values cause silent
-      // data loss → missing head/tail or garbled Thai mid-receipt.
-      const CHUNK = 150;
-      // Some BLE printers expose chars that only support writeWithoutResponse;
-      // pick the supported method dynamically.
+      // Use 512-byte chunks (BLE 4.2+ characteristic max value length).
+      // writeValueWithoutResponse is preferred — no ACK round-trip needed,
+      // throughput is ~10x faster than writeValue for large bitmap data.
+      const CHUNK = 512;
       const props = char.properties ?? {};
-      const useNoResp = props.writeWithoutResponse === true && props.write !== true;
-      const write = async (buf: Uint8Array) => {
-        if (useNoResp && typeof char.writeValueWithoutResponse === 'function') {
-          await char.writeValueWithoutResponse(buf);
-        } else {
-          await char.writeValue(buf);
+      const canNoResp = props.writeWithoutResponse === true &&
+        typeof char.writeValueWithoutResponse === 'function';
+
+      if (canNoResp) {
+        // Fire-and-forget: no ACK, very fast. 10ms between chunks so the
+        // printer's UART FIFO doesn't overflow (most printers ≥ 4 KB buffer).
+        for (let i = 0; i < data.length; i += CHUNK) {
+          await char.writeValueWithoutResponse(data.slice(i, Math.min(i + CHUNK, data.length)));
+          await new Promise(r => setTimeout(r, 10));
         }
-      };
-      for (let i = 0; i < data.length; i += CHUNK) {
-        await write(data.slice(i, Math.min(i + CHUNK, data.length)));
-        // 40ms — gives printer's small input buffer time to drain between writes
-        await new Promise(r => setTimeout(r, 40));
+      } else {
+        // ACK-based: await already paces writes — no extra delay needed.
+        for (let i = 0; i < data.length; i += CHUNK) {
+          await char.writeValue(data.slice(i, Math.min(i + CHUNK, data.length)));
+        }
       }
-      // Flush delay — ensure the last chunk (including paper-cut) is processed
-      await new Promise(r => setTimeout(r, 250));
+      // Let the printer finish processing the cut command before we return.
+      await new Promise(r => setTimeout(r, 200));
       return true;
     } catch { setBtConnected(false); btCharRef.current = null; return false; }
   }
