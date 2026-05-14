@@ -990,23 +990,37 @@ export function POSContent({ experience = 'retail' }: { experience?: PosExperien
 
   async function triggerPrint(order: { orderId: string; total: number; cart: CartItem[]; orderNumber: number; shopName: string; vatEnabled: boolean; discount: number; receiptToken?: string }, force = false) {
     if (!printerEnabled) return;
-    // Try bitmap raster first (single GS v 0, bypasses code-page issues entirely).
-    // Falls back to full text ESC/POS if bitmap fails or token unavailable.
+    // Bluetooth: text ESC/POS only — BLE throughput (~9 KB/s) makes 58 KB
+    // bitmap print in 6+ seconds with visible pause-per-strip. Text mode is
+    // < 1 KB and prints in one shot. Thai works via CP874 encoding.
+    // USB/Network: bitmap raster — fast channel, Thai font always correct.
     let raw: Uint8Array;
-    if (order.receiptToken) {
-      try {
-        const raster = await buildReceiptRasterBytes(order.receiptToken, printerWidth === 32 ? 384 : 576);
-        raw = raster;
-      } catch {
+    if (printerMode === 'bluetooth') {
+      if (order.receiptToken) {
         try {
           const data = await fetchReceipt(order.receiptToken);
           raw = buildEscPosFromReceipt(data);
         } catch {
           raw = buildEscPos(order);
         }
+      } else {
+        raw = buildEscPos(order);
       }
     } else {
-      raw = buildEscPos(order);
+      if (order.receiptToken) {
+        try {
+          raw = await buildReceiptRasterBytes(order.receiptToken, printerWidth === 32 ? 384 : 576);
+        } catch {
+          try {
+            const data = await fetchReceipt(order.receiptToken);
+            raw = buildEscPosFromReceipt(data);
+          } catch {
+            raw = buildEscPos(order);
+          }
+        }
+      } else {
+        raw = buildEscPos(order);
+      }
     }
     if (printerMode === 'bluetooth' && btConnected && await printBluetooth(raw)) return;
     if (printerMode === 'usb'       && usbConnected && await printUsb(raw)) return;
