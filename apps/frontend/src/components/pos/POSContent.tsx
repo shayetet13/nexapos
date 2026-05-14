@@ -27,7 +27,7 @@ import { DiningFloor } from '@/components/dining/DiningFloor';
 import { DiningTablesManagerModal } from '@/components/dining/DiningTablesManagerModal';
 import type { ShopMode } from '@/lib/work-area';
 import { API_URL, API_URL_DIRECT as API_DIRECT, WS_URL } from '@/lib/config';
-import { buildReceiptRasterBytes } from '@/lib/receipt-printer';
+import { fetchReceipt, buildReceiptRasterBytes, type ReceiptData } from '@/lib/receipt-printer';
 
 const t = th.pos;
 
@@ -215,9 +215,6 @@ export function POSContent({ experience = 'retail' }: { experience?: PosExperien
   const [printerMode,    setPrinterMode]    = useState<'bluetooth'|'usb'|'network'|'browser'>('browser');
   const [printerNetIP,   setPrinterNetIP]   = useState('');
   const [printerNetPort, setPrinterNetPort] = useState('9100');
-  // ESC t code page for Thai: 20 (0x14) = CP874/Windows-874, supported by Epson & most
-  // Chinese-made ESC/POS printers. Can be overridden per-shop in printer settings.
-  const [printerCodePage, setPrinterCodePage] = useState<number>(20);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const btCharRef   = useRef<any>(null);
@@ -485,8 +482,6 @@ export function POSContent({ experience = 'retail' }: { experience?: PosExperien
         setPrinterMode((localStorage.getItem(`pos_printer_mode_${shopId}`) as typeof printerMode) ?? 'browser');
         setPrinterNetIP(localStorage.getItem(`pos_printer_net_ip_${shopId}`) ?? '');
         setPrinterNetPort(localStorage.getItem(`pos_printer_net_port_${shopId}`) ?? '9100');
-        const cp = parseInt(localStorage.getItem(`pos_printer_codepage_${shopId}`) ?? '20', 10);
-        setPrinterCodePage(isNaN(cp) ? 20 : cp);
       } catch { /* ignore */ }
     });
   }, [shopId]);
@@ -708,7 +703,7 @@ export function POSContent({ experience = 'retail' }: { experience?: PosExperien
     push(0x1C, 0x43, 0x00);          // FS C 0    — Set Kanji code = JIS off (key for GBK clones)
     push(0x1C, 0x53, 0x00, 0x00);    // FS S 0 0  — Reset Kanji char spacing
     push(ESC, 0x52, 0x00);           // ESC R 0   — USA international char set
-    if (printerCodePage !== 255) push(ESC, 0x74, printerCodePage); // ESC t n — Thai code page
+    push(ESC, 0x74, 20); // ESC t 20 — CP874/Windows-874 Thai
 
     // ── Header (always centered) ──
     push(ESC, 0x61, 0x01);
@@ -737,6 +732,124 @@ export function POSContent({ experience = 'retail' }: { experience?: PosExperien
     push(LF); line('ขอบคุณที่ใช้บริการ');
     // Feed paper up one step before cut so tear-line clears the printed area
     push(LF, LF, LF, LF, LF);
+    push(GS, 0x56, 0x41, 0x30);
+    return new Uint8Array(b);
+  }
+
+  function buildEscPosFromReceipt(data: ReceiptData): Uint8Array {
+    const ESC = 0x1B; const GS = 0x1D; const LF = 0x0A;
+    const b: number[] = [];
+    const cols = printerWidth === 32 ? 32 : 48;
+    const push = (...n: number[]) => b.push(...n);
+    const PLABELS: Record<string, string> = {
+      cash: 'เงินสด', card: 'บัตรเครดิต',
+      transfer: 'โอนเงิน', qr: 'QR Code', other: 'อื่นๆ',
+    };
+    const encode = (s: string): number[] => {
+      const out: number[] = [];
+      for (const ch of s) {
+        const c = ch.charCodeAt(0);
+        if (c >= 0x0E00 && c <= 0x0E7F) out.push(c - 0x0D60);
+        else if (c < 0x80) out.push(c);
+        else out.push(0x3F);
+      }
+      return out;
+    };
+    const visLen = (s: string) =>
+      [...s].filter(ch => {
+        const c = ch.charCodeAt(0);
+        return !((c >= 0x0E31 && c <= 0x0E3A) || (c >= 0x0E47 && c <= 0x0E4E));
+      }).length;
+    const line = (s: string) => { b.push(...encode(s)); push(LF); };
+    const rpad = (left: string, right: string) =>
+      `${left}${' '.repeat(Math.max(1, cols - visLen(left) - visLen(right)))}${right}`;
+    const fmtAmt = (n: number | string) => Number(n).toFixed(2);
+    const fmtD = (d: string) =>
+      new Date(d).toLocaleString('th-TH', {
+        year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit', calendar: 'buddhist',
+      });
+
+    // Init + Kanji cancel
+    push(ESC, 0x40);
+    push(ESC, 0x21, 0x00);
+    push(0x1C, 0x2E);
+    push(0x1C, 0x43, 0x00);
+    push(0x1C, 0x53, 0x00, 0x00);
+    push(ESC, 0x52, 0x00);
+    push(ESC, 0x74, 20); // CP874/Windows-874 Thai
+
+    // ── Header ──
+    push(ESC, 0x61, 0x01);
+    push(ESC, 0x45, 0x01); push(GS, 0x21, 0x11);
+    line(data.shop_name);
+    push(GS, 0x21, 0x00); push(ESC, 0x45, 0x00);
+    if (data.branch_name) line(data.branch_name);
+    if (data.branch_address) line(data.branch_address);
+    if (data.shop_address) line(data.shop_address);
+    if (data.shop_phone) line(`โทร: ${data.shop_phone}`);
+    if (data.shop_tax_id) line(`เลขผู้เสียภาษี: ${data.shop_tax_id}`);
+    if (data.shop_working_days || data.shop_opening_hours)
+      line(`${data.shop_working_days ?? ''} ${data.shop_opening_hours ?? ''}`.trim());
+    line('-'.repeat(cols));
+    push(ESC, 0x45, 0x01);
+    line(data.vat_enabled ? 'ใบเสร็จ/ใบกำกับภาษีอย่างย่อ' : 'ใบเสร็จรับเงิน');
+    push(ESC, 0x45, 0x00);
+    line('-'.repeat(cols));
+
+    // ── Meta ──
+    push(ESC, 0x61, 0x00);
+    line(rpad('เลขที่', `#${String(data.daily_seq).padStart(4, '0')}`));
+    if (data.ref_code) line(rpad('เลขอ้างอิง', data.ref_code));
+    line(rpad('วันที่', fmtD(data.created_at)));
+    line(rpad('ชำระด้วย', PLABELS[data.payment_method ?? 'other'] ?? '—'));
+    if (data.staff_name) line(rpad('พนักงาน', data.staff_name));
+    line('-'.repeat(cols));
+
+    // ── Items ──
+    push(ESC, 0x45, 0x01); line(rpad('รายการ', 'รวม')); push(ESC, 0x45, 0x00);
+    for (const item of data.items) {
+      const name = item.product_name.slice(0, cols - 10);
+      line(rpad(`${name} x${item.quantity}`, fmtAmt(item.subtotal)));
+      if (item.note?.trim()) line(`  * ${item.note.trim().slice(0, cols - 4)}`);
+    }
+    line('-'.repeat(cols));
+
+    // ── Totals ──
+    if (Number(data.discount) > 0)
+      line(rpad('ส่วนลด', `-${fmtAmt(data.discount ?? 0)}`));
+    if (data.vat_enabled) {
+      const sub = Number(data.total) / 1.07;
+      line(rpad('ยอดก่อน VAT', fmtAmt(sub)));
+      line(rpad('VAT 7%', fmtAmt(Number(data.total) - sub)));
+    }
+    push(ESC, 0x61, 0x01);
+    push(ESC, 0x45, 0x01); push(GS, 0x21, 0x11);
+    line(`รวม ${fmtAmt(data.total)} ฿`);
+    push(GS, 0x21, 0x00); push(ESC, 0x45, 0x00);
+    push(ESC, 0x61, 0x00);
+    if (data.payment_method === 'cash' && data.cash_received && Number(data.cash_received) > 0) {
+      line(rpad('รับเงินสด', fmtAmt(data.cash_received)));
+      line(rpad('เงินทอน', fmtAmt(Number(data.cash_received) - Number(data.total))));
+    }
+    if (data.points_redeemed > 0) line(rpad('แต้มที่ใช้', `-${data.points_redeemed} แต้ม`));
+    if (data.points_earned > 0)   line(rpad('แต้มที่ได้รับ', `+${data.points_earned} แต้ม`));
+    line('-'.repeat(cols));
+
+    // ── QR code (ESC/POS GS ( k — no bitmap needed) ──
+    const qrUrl = data.shop_google_review_url ||
+      `${typeof window !== 'undefined' ? window.location.origin : ''}/receipt/${data.receipt_token}`;
+    const qrBytes = [...qrUrl.slice(0, 200)].map(c => c.charCodeAt(0));
+    const qrPl = (qrBytes.length + 3) & 0xFF;
+    const qrPh = ((qrBytes.length + 3) >> 8) & 0xFF;
+    push(ESC, 0x61, 0x01);
+    push(GS, 0x28, 0x6B, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00); // model 2
+    push(GS, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x43, 0x05);        // size 5
+    push(GS, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x45, 0x30);        // err L
+    push(GS, 0x28, 0x6B, qrPl, qrPh, 0x31, 0x50, 0x30, ...qrBytes); // store
+    push(GS, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x51, 0x30);        // print
+    push(ESC, 0x61, 0x00);
+    push(LF, LF, LF, LF);
     push(GS, 0x56, 0x41, 0x30);
     return new Uint8Array(b);
   }
@@ -876,13 +989,24 @@ export function POSContent({ experience = 'retail' }: { experience?: PosExperien
 
   async function triggerPrint(order: { orderId: string; total: number; cart: CartItem[]; orderNumber: number; shopName: string; vatEnabled: boolean; discount: number; receiptToken?: string }, force = false) {
     if (!printerEnabled) return;
-    // Prefer bitmap raster (matches the web receipt 1:1, immune to printer
-    // code-page misconfiguration). Falls back to text ESC/POS if we don't
-    // have a receipt token yet (e.g. an offline retry).
-    const rawForRaster = order.receiptToken
-      ? await buildReceiptRasterBytes(order.receiptToken, printerWidth === 32 ? 384 : 576).catch(() => null)
-      : null;
-    const raw = rawForRaster ?? buildEscPos(order);
+    // Try bitmap raster first (single GS v 0, bypasses code-page issues entirely).
+    // Falls back to full text ESC/POS if bitmap fails or token unavailable.
+    let raw: Uint8Array;
+    if (order.receiptToken) {
+      try {
+        const raster = await buildReceiptRasterBytes(order.receiptToken, printerWidth === 32 ? 384 : 576);
+        raw = raster;
+      } catch {
+        try {
+          const data = await fetchReceipt(order.receiptToken);
+          raw = buildEscPosFromReceipt(data);
+        } catch {
+          raw = buildEscPos(order);
+        }
+      }
+    } else {
+      raw = buildEscPos(order);
+    }
     if (printerMode === 'bluetooth' && btConnected && await printBluetooth(raw)) return;
     if (printerMode === 'usb'       && usbConnected && await printUsb(raw)) return;
     if (printerMode === 'network'   && printerNetIP && await printNetwork(raw)) return;

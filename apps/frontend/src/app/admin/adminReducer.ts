@@ -283,7 +283,6 @@ export interface SettingsState {
   printerMode: 'bluetooth' | 'usb' | 'network' | 'browser';
   printerNetIP: string;
   printerNetPort: string;
-  printerCodePage: number;
   genProvince: string;
   genDistrict: string;
   genSaving: boolean;
@@ -401,7 +400,7 @@ export const initialAdminState: AdminState = {
     settingsBirthdayBenefitType: 'percent', settingsBirthdayBenefitValue: 0,
     settingsBirthdayAutoUsePoints: true, settingsPrintEnabled: false,
     settingsPrinterWidth: 48, printerMode: 'browser', printerNetIP: '',
-    printerNetPort: '9100', printerCodePage: 20, genProvince: '', genDistrict: '', genSaving: false,
+    printerNetPort: '9100', genProvince: '', genDistrict: '', genSaving: false,
     codeCopied: false,
     settingsPhone: '', settingsTaxId: '', settingsAddress: '',
     settingsOpeningHours: '', settingsWorkingDays: '', settingsGoogleReviewUrl: '',

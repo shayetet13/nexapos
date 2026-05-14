@@ -85,7 +85,6 @@ interface Props {
   printerMode: 'bluetooth' | 'usb' | 'network' | 'browser'; setPrinterMode: (v: 'bluetooth' | 'usb' | 'network' | 'browser') => void;
   printerNetIP: string; setPrinterNetIP: (v: string) => void;
   printerNetPort: string; setPrinterNetPort: (v: string) => void;
-  printerCodePage: number; setPrinterCodePage: (v: number) => void;
   promoPresets: PromotionPreset[]; setPromoPresets: React.Dispatch<React.SetStateAction<PromotionPreset[]>>;
   promoCombos: ComboDef[]; setPromoCombos: React.Dispatch<React.SetStateAction<ComboDef[]>>;
   promoLoading: boolean;
@@ -145,7 +144,6 @@ export function SettingsTab({
   printerMode, setPrinterMode,
   printerNetIP, setPrinterNetIP,
   printerNetPort, setPrinterNetPort,
-  printerCodePage, setPrinterCodePage,
   promoPresets, setPromoPresets,
   promoCombos, setPromoCombos,
   promoLoading,
@@ -1276,38 +1274,6 @@ export function SettingsTab({
                 />
                 <p style={{ fontSize:'0.7rem', color:'#6b7280' }}>
                   ⚠️ ต้องรัน relay บนเครือข่ายเดียวกัน: npx nexpos-relay --ip=PRINTER_IP (หรือเครื่องปริ๊นรองรับ ePOS WebSocket Epson TM series ใช้ port 8008)
-                </p>
-              </div>
-            )}
-
-            {/* Thai code page selector — only relevant for Bluetooth/USB/Network modes */}
-            {printerMode !== 'browser' && (
-              <div className="page-admin__printer-net">
-                <label className="page-admin__label">Code Page ภาษาไทย (ESC t)</label>
-                <select
-                  className="input-field"
-                  value={printerCodePage}
-                  onChange={e => {
-                    const v = parseInt(e.target.value, 10);
-                    setPrinterCodePage(v);
-                    try {
-                      const shopId = localStorage.getItem('pos_shop_id') ?? '';
-                      if (shopId) localStorage.setItem(`pos_printer_codepage_${shopId}`, String(v));
-                    } catch { /* ignore */ }
-                  }}
-                >
-                  <option value={20}>20 — CP874 / Windows-874 Thai (แนะนำ: Epson, Xprinter, MUNBYN)</option>
-                  <option value={21}>21 — TIS-620 Thai (POS-58 / POS-80 จีน รุ่นใหม่)</option>
-                  <option value={22}>22 — TIS-620 + Thai-1 pass (Xprinter บางรุ่น)</option>
-                  <option value={26}>26 — Thai (Sunmi V2 / บาง mPOS)</option>
-                  <option value={30}>30 — TIS-620 alt (Rongta บางรุ่น)</option>
-                  <option value={18}>18 — PC866 Thai (Xprinter / Rongta รุ่นเก่า)</option>
-                  <option value={14}>14 — Thai-3 pass (POS-58 จีนรุ่นเก่ามาก)</option>
-                  <option value={255}>255 — ไม่เลือก code page (ใช้ default ของเครื่องปริ๊น)</option>
-                </select>
-                <p style={{ fontSize: '0.7rem', color: '#6b7280' }}>
-                  ⚠️ หากปริ๊นออกมาเป็น <b>ภาษาจีน/อักษรเพี้ยน</b> แสดงว่าเครื่องปริ๊นใช้ code page อื่น — ลองสลับค่าทีละตัว
-                  (20 → 21 → 22 → 26 → 30) แล้วทดสอบใหม่ ค่าที่ใช้ได้จะขึ้นกับ firmware ของเครื่อง
                 </p>
               </div>
             )}

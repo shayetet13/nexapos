@@ -407,34 +407,36 @@ export function canvasToEscPosRaster(canvas: HTMLCanvasElement): Uint8Array {
     // padding pixels stay 0 (already)
   }
 
-  // Pack bits into bytes (MSB first within each byte) and chunk into ESC/POS
-  // raster commands. Each chunk has up to CHUNK rows.
-  const CHUNK = 256;
+  // Pack all rows into a SINGLE GS v 0 command.
+  // Chunking caused printers that only accept one GS v 0 command to print
+  // subsequent chunks as raw ASCII garbage. GS v 0 supports up to 65535 rows,
+  // which is far more than any receipt needs.
   const out: number[] = [];
 
-  // ESC @ — initialize printer (clears any leftover Kanji/CP state)
+  // ESC @ + full Kanji-cancel sequence
   out.push(0x1B, 0x40);
-  // ESC 3 0 — line spacing to 0 between rows so adjacent raster chunks
-  // join without gaps. Some printers default to 30+ dots between strips.
+  out.push(0x1B, 0x21, 0x00);
+  out.push(0x1C, 0x2E);
+  out.push(0x1C, 0x43, 0x00);
+  out.push(0x1C, 0x53, 0x00, 0x00);
+  out.push(0x1B, 0x52, 0x00);
+  // ESC 3 0 — zero inter-line spacing
   out.push(0x1B, 0x33, 0x00);
 
-  for (let yStart = 0; yStart < H; yStart += CHUNK) {
-    const rows = Math.min(CHUNK, H - yStart);
-    // GS v 0 m xL xH yL yH [data]
-    out.push(0x1D, 0x76, 0x30, 0x00);
-    out.push(wBytes & 0xFF, (wBytes >> 8) & 0xFF);
-    out.push(rows & 0xFF, (rows >> 8) & 0xFF);
+  // Single GS v 0 covering the entire canvas height
+  out.push(0x1D, 0x76, 0x30, 0x00);
+  out.push(wBytes & 0xFF, (wBytes >> 8) & 0xFF);
+  out.push(H & 0xFF, (H >> 8) & 0xFF);
 
-    for (let y = yStart; y < yStart + rows; y++) {
-      const rowBase = y * fullW;
-      for (let b = 0; b < wBytes; b++) {
-        let byte = 0;
-        const bitBase = rowBase + b * 8;
-        for (let k = 0; k < 8; k++) {
-          if (bits[bitBase + k]) byte |= 1 << (7 - k);
-        }
-        out.push(byte);
+  for (let y = 0; y < H; y++) {
+    const rowBase = y * fullW;
+    for (let b = 0; b < wBytes; b++) {
+      let byte = 0;
+      const bitBase = rowBase + b * 8;
+      for (let k = 0; k < 8; k++) {
+        if (bits[bitBase + k]) byte |= 1 << (7 - k);
       }
+      out.push(byte);
     }
   }
 

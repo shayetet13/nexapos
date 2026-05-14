@@ -125,7 +125,7 @@ function AdminPageInner() {
     settingsTierSilver, settingsTierGold,
     settingsBirthdayBenefitType, settingsBirthdayBenefitValue, settingsBirthdayAutoUsePoints,
     settingsPrintEnabled, settingsPrinterWidth,
-    printerMode, printerNetIP, printerNetPort, printerCodePage,
+    printerMode, printerNetIP, printerNetPort,
     genProvince, genDistrict, genSaving, codeCopied,
     settingsPhone, settingsTaxId, settingsAddress,
     settingsOpeningHours, settingsWorkingDays, settingsGoogleReviewUrl,
@@ -496,7 +496,6 @@ function AdminPageInner() {
         printerMode:     (localStorage.getItem(`pos_printer_mode_${shopId}`) as typeof printerMode) ?? 'browser',
         printerNetIP:    localStorage.getItem(`pos_printer_net_ip_${shopId}`) ?? '',
         printerNetPort:  localStorage.getItem(`pos_printer_net_port_${shopId}`) ?? '9100',
-        printerCodePage: parseInt(localStorage.getItem(`pos_printer_codepage_${shopId}`) ?? '20', 10) || 20,
       } });
     } catch { /* ignore */ }
   }, [shopId]);
@@ -1446,7 +1445,6 @@ function AdminPageInner() {
                 printerMode={printerMode} setPrinterMode={(v) => dispatch({ type: 'PATCH_SETTINGS', payload: { printerMode: v } })}
                 printerNetIP={printerNetIP} setPrinterNetIP={(v) => dispatch({ type: 'PATCH_SETTINGS', payload: { printerNetIP: v } })}
                 printerNetPort={printerNetPort} setPrinterNetPort={(v) => dispatch({ type: 'PATCH_SETTINGS', payload: { printerNetPort: v } })}
-                printerCodePage={printerCodePage} setPrinterCodePage={(v) => dispatch({ type: 'PATCH_SETTINGS', payload: { printerCodePage: v } })}
                 promoPresets={promoPresets} setPromoPresets={setPromoPresets}
                 promoCombos={promoCombos} setPromoCombos={setPromoCombos}
                 promoLoading={promoLoading}
