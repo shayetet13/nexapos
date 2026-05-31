@@ -30,7 +30,20 @@ const SECTION_LABELS: Record<keyof Pick<ReceiptLayout, 'shopName' | 'sub' | 'tit
 
 export function ReceiptTuningTab() {
   const [layout, setLayout]   = useState<ReceiptLayout>(() => loadReceiptLayout());
-  const [paperWidth, setPaper] = useState<32 | 48>(MOCK_RECEIPT_ORDER.paperWidth);
+  // ── Paper width: ดึงจาก localStorage ของ POS จริง ─────────────────────────
+  // pos_printer_width_<shopId> ถูกบันทึกไว้ตอน POS โหลด shop config
+  // Dev tab อ่านค่านี้เพื่อให้ preview ตรงกับกระดาษที่ใช้จริง
+  const [paperWidth, setPaper] = useState<32 | 48>(() => {
+    if (typeof localStorage === 'undefined') return MOCK_RECEIPT_ORDER.paperWidth;
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith('pos_printer_width_')) {
+        const val = localStorage.getItem(key);
+        if (val === '32' || val === '48') return Number(val) as 32 | 48;
+      }
+    }
+    return MOCK_RECEIPT_ORDER.paperWidth;
+  });
   const [logoUrl, setLogoUrl] = useState('');
   const [toast, setToast]     = useState<ToastMsg | null>(null);
   const [mode, setMode]       = useState<PrintMode>('bluetooth');
@@ -50,6 +63,14 @@ export function ReceiptTuningTab() {
     () => ({ ...MOCK_RECEIPT_ORDER, paperWidth, logoUrl: logoUrl.trim() || null }),
     [paperWidth, logoUrl],
   );
+
+  // ── Auto-save layout → localStorage ──────────────────────────────────────────
+  // บันทึกทันทีทุกครั้งที่ layout เปลี่ยน (debounce 800ms)
+  // ทำให้ POS print ใช้ค่าล่าสุดจาก dev tab โดยไม่ต้องกดปุ่ม "บันทึก" ด้วยตนเอง
+  useEffect(() => {
+    const t = setTimeout(() => { saveReceiptLayout(layout); }, 800);
+    return () => { clearTimeout(t); };
+  }, [layout]);
 
   // Live preview — re-render the receipt canvases whenever layout/paper/logo changes
   useEffect(() => {
@@ -81,7 +102,7 @@ export function ReceiptTuningTab() {
 
   function handleSave() {
     saveReceiptLayout(layout);
-    setToast({ type: 'ok', text: 'บันทึกเป็นค่าเริ่มต้นบนเครื่องนี้แล้ว — การพิมพ์จริงจะใช้ค่านี้ทันที' });
+    setToast({ type: 'ok', text: '✅ บันทึกแล้ว (auto-save ทำงานทุกครั้งที่แก้ไข — ไม่ต้องกดปุ่มนี้ก็ได้)' });
   }
   function handleReset() {
     resetReceiptLayout();
