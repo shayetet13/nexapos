@@ -1,0 +1,436 @@
+/* ── Nexa Dining — เชลล์ /dining แยกจาก POS (เหลือ DOM เดียวกับ POS แต่คนลัดธีม) ───── */
+
+:root {
+  --dining-gold: #d4a574;
+}
+
+body:has(.dining-app) {
+  overflow: hidden;
+  height: 100dvh;
+}
+
+.dining-app {
+  --dining-floor-border: rgba(212, 165, 116, 0.18);
+  --dining-elev-bg: rgba(0, 0, 0, 0.22);
+
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100vh;
+  height: 100dvh;
+  background-color: #0f1419;
+  color: #f4efe8;
+}
+
+/* Top bar — เดิมใช้ .pos-topnav */
+.dining-app .pos-topnav {
+  flex-shrink: 0;
+  background: linear-gradient(180deg, #1c252f 0%, #141920 100%);
+  border-bottom-color: rgba(212, 165, 116, 0.15);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.45);
+}
+
+.dining-app .pos-topnav__logo-brand {
+  color: var(--dining-gold);
+}
+
+.dining-app .pos-stat-pill,
+.dining-app .pos-stat-pill--orders {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(244, 239, 232, 0.88);
+}
+
+.dining-app .pos-stat-pill--sales {
+  border-color: rgba(212, 165, 116, 0.35);
+  color: var(--dining-gold);
+}
+
+.dining-app__floor-wrap {
+  flex-shrink: 0;
+  padding: 12px clamp(14px, 4vw, 28px);
+  border-bottom: 1px solid var(--dining-floor-border);
+  background: linear-gradient(180deg, rgba(212, 165, 116, 0.06) 0%, transparent 72%);
+}
+
+.dining-floor {
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(26, 32, 40, 0.85);
+  border: 1px solid rgba(212, 165, 116, 0.12);
+}
+
+.dining-floor__intro {
+  margin-bottom: 12px;
+}
+
+.dining-floor__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.dining-floor__sub {
+  margin: 6px 0 0;
+  font-size: 0.8125rem;
+  color: rgba(244, 239, 232, 0.55);
+  max-width: 52ch;
+  line-height: 1.45;
+}
+
+.dining-floor__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(5.75rem, 1fr));
+  gap: 8px;
+}
+
+.dining-floor__pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 6px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.dining-floor__pill:hover {
+  border-color: rgba(212, 165, 116, 0.42);
+  background: rgba(212, 165, 116, 0.08);
+}
+
+.dining-floor__pill--selected {
+  border-color: var(--dining-gold);
+  box-shadow: 0 0 0 2px rgba(212, 165, 116, 0.18);
+}
+
+.dining-floor__pill-num {
+  font-weight: 800;
+  font-size: 1.05rem;
+}
+
+.dining-floor__pill-meta {
+  font-size: 0.6rem;
+  color: rgba(244, 239, 232, 0.45);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.dining-floor__empty {
+  margin: 0 0 12px;
+  font-size: 0.8125rem;
+  color: rgba(244, 239, 232, 0.5);
+}
+
+.dining-floor__toolbar {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.dining-floor__secondary {
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(212, 165, 116, 0.35);
+  background: transparent;
+  color: rgba(244, 239, 232, 0.85);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.dining-floor__secondary:hover {
+  border-color: var(--dining-gold);
+  background: rgba(212, 165, 116, 0.1);
+}
+
+.dining-floor__toolbar--session {
+  margin-top: 12px;
+}
+
+.dining-floor__cta {
+  padding: 8px 20px;
+  border-radius: 999px;
+  border: none;
+  font-weight: 700;
+  font-size: 0.875rem;
+  cursor: pointer;
+  background: linear-gradient(145deg, #c9935c, #856341);
+  color: #17120f;
+}
+
+.dining-floor__cta:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.dining-floor__cta--accent {
+  background: linear-gradient(145deg, #10b981, #059669);
+  color: #fff;
+}
+
+.dining-floor__linkish {
+  background: transparent;
+  border: none;
+  font-size: 0.8125rem;
+  text-decoration: underline;
+  cursor: pointer;
+  color: rgba(244, 239, 232, 0.5);
+}
+
+.dining-floor__linkish:hover {
+  color: #f4efe8;
+}
+
+.dining-floor__active {
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(52, 211, 153, 0.28);
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.dining-floor__active-badge {
+  display: inline-block;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(52, 211, 153, 0.2);
+  color: #34d399;
+  margin-bottom: 8px;
+}
+
+.dining-floor__active-label {
+  font-size: 1rem;
+}
+
+.dining-floor__active-hint {
+  margin: 8px 0 0;
+  font-size: 0.8125rem;
+  color: rgba(244, 239, 232, 0.52);
+}
+
+.dining-app .pos-body {
+  border-top: none;
+}
+
+.dining-app__menu-head {
+  padding: 4px 0 12px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid rgba(212, 165, 116, 0.1);
+}
+
+.dining-app__menu-head h2 {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: rgba(212, 165, 116, 0.95);
+}
+
+.dining-app__menu-head-note {
+  margin: 4px 0 0;
+  font-size: 0.8125rem;
+  color: rgba(244, 239, 232, 0.48);
+}
+
+.dining-app .pos-products {
+  background: linear-gradient(180deg, #12171d 0%, #0f1419 40%);
+}
+
+.dining-app .pos-grid .pos-card {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.dining-app .pos-cart-sidebar.dining-app__ticket {
+  background: rgba(0, 0, 0, 0.32);
+  border-left: 1px solid rgba(212, 165, 116, 0.12);
+}
+
+/* จัดการโต๊ะ — เหนือ layer ฟลอร์ */
+.dining-modal__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(0, 0, 0, 0.52);
+}
+
+.dining-modal {
+  position: fixed;
+  z-index: 81;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(420px, calc(100vw - 24px));
+  max-height: min(560px, 88dvh);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  border: 1px solid rgba(212, 165, 116, 0.22);
+  background: linear-gradient(180deg, #1e2630 0%, #171c24 100%);
+  box-shadow: 0 22px 64px rgba(0, 0, 0, 0.55);
+  color: #f4efe8;
+}
+
+.dining-modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.dining-modal__head h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.dining-modal__close {
+  border: none;
+  background: transparent;
+  color: rgba(244, 239, 232, 0.55);
+  font-size: 1.1rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 4px;
+}
+
+.dining-modal__close:hover {
+  color: #f4efe8;
+}
+
+.dining-modal__body {
+  padding: 14px 16px 18px;
+  overflow-y: auto;
+}
+
+.dining-modal__hint,
+.dining-modal__muted,
+.dining-modal__footnote {
+  margin: 0 0 12px;
+  font-size: 0.8125rem;
+  color: rgba(244, 239, 232, 0.48);
+}
+
+.dining-modal__footnote {
+  margin-top: 12px;
+}
+
+.dining-modal__add-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.dining-modal__label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: rgba(212, 165, 116, 0.9);
+}
+
+.dining-modal__input {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+
+.dining-modal__input-cap {
+  width: 4.75rem;
+  flex-shrink: 0;
+}
+
+.dining-modal__add-btn {
+  flex-shrink: 0;
+}
+
+.dining-modal__err {
+  margin: 0 0 10px;
+  font-size: 0.8125rem;
+  color: #f87171;
+}
+
+.dining-modal__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dining-modal__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.dining-modal__row-edit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.dining-modal__row-input {
+  flex: 1;
+  min-width: 120px;
+}
+
+.dining-modal__cap-pill {
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(212, 165, 116, 0.12);
+  color: rgba(244, 239, 232, 0.65);
+  white-space: nowrap;
+}
+
+.dining-modal__save {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: none;
+  background: rgba(52, 211, 153, 0.2);
+  color: #34d399;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.dining-modal__save:hover {
+  background: rgba(52, 211, 153, 0.3);
+}
+
+.dining-modal__del {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: rgba(248, 113, 113, 0.9);
+  font-size: 0.75rem;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.dining-modal__del:hover {
+  background: rgba(248, 113, 113, 0.12);
+}

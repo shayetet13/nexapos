@@ -1,0 +1,20 @@
+# Railway / Nixpacks — Backend (Fastify)
+# Root Directory in Railway dashboard: apps/backend
+# ../../ resolves to the monorepo root (/app) where pnpm-workspace.yaml lives
+
+[phases.setup]
+nixPkgs = ["nodejs_22"]
+
+[phases.install]
+cmds = [
+  "npm install -g pnpm@9.15.0",
+  "pnpm --dir ../.. install --frozen-lockfile",
+]
+
+[phases.build]
+cmds = [
+  "pnpm --dir ../.. --filter @nexapos/backend build",
+]
+
+[start]
+cmd = "node dist/index.js"

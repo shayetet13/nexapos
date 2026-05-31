@@ -1,0 +1,40 @@
+{
+  "mcpServers": {
+    "jod": {
+      "command": "node",
+      "args": [
+        "C:/Users/Administrator/Desktop/gs-world/mcp.js"
+      ],
+      "description": "GS World Agent Monitor — tracks Claude agent activity on office display"
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "C:\\Users\\Administrator\\Desktop\\Pos"
+      ],
+      "description": "File system access for NexaPos project root"
+    },
+    "postgres": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-postgres",
+        "${SUPABASE_DB_URL}"
+      ],
+      "env": {
+        "SUPABASE_DB_URL": "${SUPABASE_DB_URL}"
+      },
+      "description": "Direct PostgreSQL/Supabase access for schema inspection and queries"
+    },
+    "fetch": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-fetch"
+      ],
+      "description": "HTTP fetch for reading docs, checking APIs, testing endpoints"
+    }
+  }
+}

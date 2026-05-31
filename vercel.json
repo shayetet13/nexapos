@@ -1,0 +1,7 @@
+{
+  "framework": "nextjs",
+  "installCommand": "pnpm install",
+  "buildCommand": "pnpm --filter=@nexapos/shared build && pnpm --filter=@nexapos/frontend build",
+  "outputDirectory": "apps/frontend/.next",
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- apps/frontend/ packages/shared/"
+}

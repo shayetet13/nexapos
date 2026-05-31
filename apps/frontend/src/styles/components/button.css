@@ -1,0 +1,100 @@
+/* ═══════════════════════════════════════════════════════
+   Buttons — Theme-aware
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Primary ── */
+.btn-primary {
+  @apply cursor-pointer rounded-xl px-5 py-2.5 text-sm font-semibold active:scale-95 disabled:cursor-not-allowed disabled:opacity-50;
+  background: var(--color-primary);
+  color: var(--color-bg);
+  box-shadow: var(--shadow-primary-sm);
+  transition: all var(--duration-normal) var(--ease-out);
+  position: relative;
+  overflow: hidden;
+}
+.btn-primary::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, var(--color-primary-shimmer, rgba(255,255,255,0.15)), transparent);
+  animation: btnShimmer 3s var(--ease-out) infinite;
+}
+.btn-primary:hover:not(:disabled) {
+  box-shadow: var(--shadow-primary-md);
+  transform: translateY(-1px);
+}
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0) scale(0.97);
+  box-shadow: var(--shadow-primary-sm);
+}
+
+.btn-primary.btn-block {
+  @apply w-full;
+}
+
+/* ── Pay / Checkout ── */
+.btn-pay {
+  @apply w-full rounded-2xl py-3.5 text-base font-bold active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed;
+  background: var(--color-primary);
+  color: var(--color-bg);
+  box-shadow: var(--shadow-primary-md);
+  transition: all var(--duration-normal) var(--ease-out);
+  position: relative;
+  overflow: hidden;
+}
+.btn-pay::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, var(--color-primary-shimmer, rgba(255,255,255,0.12)), transparent);
+  animation: btnShimmer 3s var(--ease-out) infinite;
+}
+.btn-pay:hover:not(:disabled) {
+  box-shadow: var(--shadow-primary-lg);
+  transform: translateY(-1px);
+}
+
+/* ── Secondary — Ocean outlined ── */
+.btn-secondary {
+  @apply w-full cursor-pointer rounded-xl border py-2.5 text-sm font-semibold;
+  border-color: var(--color-border-light);
+  background-color: var(--color-bg-card);
+  color: var(--color-text-muted);
+  transition: all var(--duration-normal) var(--ease-out);
+}
+.btn-secondary:hover {
+  background-color: var(--color-bg-hover);
+  color: var(--color-text);
+  border-color: var(--color-border-active);
+  box-shadow: var(--shadow-xs);
+}
+
+/* ── Ghost — text-only with hover bg ── */
+.btn-ghost {
+  @apply cursor-pointer rounded-lg px-3 py-1.5 text-sm font-medium;
+  color: var(--color-text-muted);
+  background: transparent;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+.btn-ghost:hover {
+  background-color: var(--color-bg-hover);
+  color: var(--color-text);
+}
+
+/* ── Danger — red for destructive actions ── */
+.btn-danger {
+  @apply cursor-pointer rounded-lg px-3 py-1.5 text-sm font-semibold;
+  background-color: var(--color-error-bg);
+  color: var(--color-text-error);
+  transition: all var(--duration-fast) var(--ease-out);
+}
+.btn-danger:hover {
+  background-color: var(--color-error-bg-hover, rgba(255, 107, 107, 0.2));
+  color: var(--color-text-error);
+}

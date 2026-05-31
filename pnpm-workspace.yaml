@@ -1,0 +1,6 @@
+packages:
+  - "apps/frontend"
+  - "apps/backend"
+  - "apps/worker"
+  - "apps/print-agent"
+  - "packages/shared"
