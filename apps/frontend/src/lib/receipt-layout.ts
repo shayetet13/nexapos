@@ -9,7 +9,7 @@
 
 const LS_KEY = 'pos_receipt_layout';
 // เพิ่มเลขนี้เมื่อเปลี่ยนโครงสร้าง/ค่า default — ค่าเก่าที่ผู้ใช้บันทึกไว้จะถูกทิ้งอัตโนมัติ
-const LAYOUT_VERSION = 3;
+const LAYOUT_VERSION = 4;
 
 /** Font size + line height for one receipt section (in printer dots / px) */
 export interface SectionStyle {
@@ -44,27 +44,27 @@ export interface ReceiptLayout {
 
 /** Baked default — tuned to match the web receipt design. Edit here to set the permanent default. */
 export const DEFAULT_RECEIPT_LAYOUT: ReceiptLayout = {
-  marginTop: 8,
+  marginTop: 10,
   marginBottom: 12,
   marginLeft: 18,
   marginRight: 18,
   showLogo: true,
   logoDiameter: 120,
-  qrSize: 6,
-  totalTextGap: 18,
-  totalLineGap: 5,
-  dashGap: 13,
-  dashOffset: 0,
-  titleGap: 8,
-  itemGap: 12,
+  qrSize: 7,
+  totalTextGap: 27,
+  totalLineGap: 0,
+  dashGap: 14,
+  dashOffset: -2,
+  titleGap: 4,
+  itemGap: 20,
   feedAfter: 0,
   shopName:   { fs: 38, lh: 50 },
-  sub:        { fs: 24, lh: 34 },
-  title:      { fs: 28, lh: 42 },
-  meta:       { fs: 26, lh: 38 },
-  itemHeader: { fs: 24, lh: 36 },
-  item:       { fs: 28, lh: 42 },
-  total:      { fs: 38, lh: 54 },
+  sub:        { fs: 20, lh: 30 },
+  title:      { fs: 25, lh: 23 },
+  meta:       { fs: 19, lh: 38 },
+  itemHeader: { fs: 20, lh: 36 },
+  item:       { fs: 20, lh: 33 },
+  total:      { fs: 24, lh: 45 },
   footer:     { fs: 24, lh: 36 },
 };
 
