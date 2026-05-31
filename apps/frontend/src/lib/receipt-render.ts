@@ -3,13 +3,17 @@
  * dependency) then converts to ESC/POS raster bytes (GS v 0).
  *
  * Single render pass with auto-crop: content is drawn onto an oversized canvas while
- * tracking `y`, then cropped to the exact content height. This removes the dual-pass
- * height/render mismatch that caused overlapping text.
+ * tracking `y`, then cropped to the exact content height.
  *
- * Print output = body image  →  ESC a 1 (center) → native QR (GS ( k) → ESC a 0
- *             →  footer image →  feed + cut.
+ * QR code is rendered ONTO the body canvas (raster, centered by canvas math) instead of
+ * using the native ESC/POS QR command (GS ( k) + ESC a 1. Many thermal printers (e.g.
+ * AIYIN, some XPRINTER models) ignore ESC a alignment for GS ( k — the QR always prints
+ * left-aligned. Raster QR avoids this entirely.
+ *
+ * Print output = body+QR raster → footer raster → feed + cut.
  */
 
+import QRCodeLib from 'qrcode';
 import { withLayoutDefaults, type ReceiptData, type ReceiptLayout } from './receipt-layout';
 
 const FONT = "'Sarabun', 'Noto Sans Thai', sans-serif";
@@ -242,13 +246,24 @@ function drawBody(
     y += band;                                           // ตำแหน่งยอดรวมคงที่ — ไม่ขึ้นกับ totalLineGap
   }
 
-  // Grand total
+  // Grand total — overflow-safe: ถ้า label + value กว้างเกิน contentW ให้แยก 2 บรรทัด
   {
     const s = layout.total;
+    const totalLabel = 'ยอดรวมทั้งหมด';
+    const totalValue = `${money(data.total)} บาท`;
     ctx.font = `700 ${s.fs}px ${FONT}`; ctx.fillStyle = '#000';
-    ctx.textAlign = 'left';  ctx.fillText('ยอดรวมทั้งหมด', L, y);
-    ctx.textAlign = 'right'; ctx.fillText(`${money(data.total)} บาท`, R, y);
-    y += s.lh;
+    const labelW = ctx.measureText(totalLabel).width;
+    const valueW = ctx.measureText(totalValue).width;
+    if (labelW + valueW + 20 <= contentW) {
+      // พอดี — บรรทัดเดียว
+      ctx.textAlign = 'left';  ctx.fillText(totalLabel, L, y);
+      ctx.textAlign = 'right'; ctx.fillText(totalValue, R, y);
+      y += s.lh;
+    } else {
+      // ล้นเกิน — label บรรทัดแรก, value บรรทัดถัดไปชิดขวา
+      ctx.textAlign = 'left';  ctx.fillText(totalLabel, L, y); y += s.lh;
+      ctx.textAlign = 'right'; ctx.fillText(totalValue, R, y); y += s.lh;
+    }
   }
 
   // Cash received / change
@@ -257,7 +272,7 @@ function drawBody(
     metaRow('เงินทอน', `${money(data.change ?? 0)} บาท`, true, '#1a56db');
   }
 
-  // QR label (the QR barcode itself is printed by ESC/POS between body & footer)
+  // QR label — QR image itself is drawn AFTER this via drawQrOnCanvas() inside renderBlock
   if (qrUrl) {
     dash();
     cen(data.googleReviewUrl ? 'สแกนรีวิวร้านค้า' : 'สแกนดูใบเสร็จ', layout.sub.fs, layout.sub.lh, false, '#555');
@@ -322,6 +337,43 @@ async function ensureSarabunLoaded(layout: ReceiptLayout): Promise<void> {
   } catch { /* font unavailable — canvas falls back to Noto Sans Thai */ }
 }
 
+/**
+ * Render a QR code onto a canvas, centered horizontally.
+ *
+ * Uses the `qrcode` library to generate a QR to an offscreen canvas, then draws
+ * that canvas onto the receipt canvas at the correct centered x position.
+ * This is more reliable than ESC/POS native QR + ESC a 1 because many thermal printers
+ * (AIYIN, some XPRINTER models) ignore ESC a alignment for GS ( k commands.
+ *
+ * Returns the new y position after the QR block.
+ */
+async function drawQrOnCanvas(
+  ctx: CanvasRenderingContext2D,
+  url: string,
+  cellSize: number,    // dots per QR module (= layout.qrSize)
+  canvasWidth: number, // DOTS
+  y: number,
+): Promise<number> {
+  try {
+    const offscreen = document.createElement('canvas');
+    // qrcode.toCanvas — scale ≈ dots per module, margin=1 module border
+    await QRCodeLib.toCanvas(offscreen, url, {
+      scale: Math.max(1, Math.round(cellSize)),
+      margin: 1,
+      errorCorrectionLevel: 'M',
+      color: { dark: '#000000', light: '#ffffff' },
+    });
+    const qrW = offscreen.width;
+    const qrH = offscreen.height;
+    // Center on canvas (canvas math → correct on paper regardless of printer ESC a support)
+    const x = Math.round((canvasWidth - qrW) / 2);
+    ctx.drawImage(offscreen, x, y);
+    return y + qrH + 8;
+  } catch {
+    return y; // QR render failed — skip silently (receipt still usable)
+  }
+}
+
 /** Render the receipt to body + footer canvases (Thai-safe). Used by both print and dev preview. */
 export async function renderReceipt(data: ReceiptData, layoutIn: ReceiptLayout): Promise<RenderedReceipt> {
   const layout = withLayoutDefaults(layoutIn); // fill missing fields → safe against stale/partial layout
@@ -332,9 +384,38 @@ export async function renderReceipt(data: ReceiptData, layoutIn: ReceiptLayout):
   const logo = layout.showLogo && data.logoUrl ? await loadImage(data.logoUrl) : null;
   const qrUrl = data.googleReviewUrl ?? (data.receiptToken ? `https://nexapos.io/receipt/${data.receiptToken}` : null);
 
-  const body   = renderBlock(DOTS, (ctx) => drawBody(ctx, data, layout, DOTS, logo, qrUrl));
+  // QR is rendered INSIDE the body canvas (raster, centered by canvas math).
+  // drawBody() draws the QR label text; then we draw the actual QR image right after.
+  let bodyCanvas!: HTMLCanvasElement;
+  await new Promise<void>((resolve) => {
+    bodyCanvas = renderBlock(DOTS, (ctx) => drawBody(ctx, data, layout, DOTS, logo, qrUrl));
+    resolve();
+  });
+
+  // Append QR image below body content (if qrUrl exists)
+  if (qrUrl) {
+    const bodyH = bodyCanvas.height;
+    // Grow the body canvas to fit QR below
+    const ext = document.createElement('canvas');
+    ext.width = DOTS;
+    // Estimate QR size: scale * (modules + 2*margin_modules). Use a safe upper bound (200px).
+    const estQrH = Math.round(layout.qrSize) * 45 + 16; // version~5 → 37 modules + 1*2 border = 39 → × scale
+    ext.height = bodyH + estQrH;
+    const ectx = ext.getContext('2d')!;
+    ectx.fillStyle = '#ffffff'; ectx.fillRect(0, 0, DOTS, ext.height);
+    ectx.drawImage(bodyCanvas, 0, 0);
+    const finalY = await drawQrOnCanvas(ectx, qrUrl, layout.qrSize, DOTS, bodyH);
+    // Crop to actual content
+    const cropped = document.createElement('canvas');
+    cropped.width = DOTS; cropped.height = finalY;
+    const cctx = cropped.getContext('2d')!;
+    cctx.fillStyle = '#ffffff'; cctx.fillRect(0, 0, DOTS, finalY);
+    cctx.drawImage(ext, 0, 0);
+    bodyCanvas = cropped;
+  }
+
   const footer = renderBlock(DOTS, (ctx) => drawFooter(ctx, data, layout, DOTS));
-  return { body, footer, qrUrl };
+  return { body: bodyCanvas, footer, qrUrl };
 }
 
 /** Convert a canvas to ESC/POS GS v 0 raster bytes (header + 1-bit bitmap). */
@@ -381,22 +462,18 @@ function concat(chunks: (number[] | Uint8Array)[]): Uint8Array {
   return out;
 }
 
-/** Build the full ESC/POS byte stream for a receipt (body raster → centered QR → footer raster → cut). */
+/** Build the full ESC/POS byte stream for a receipt (body+QR raster → footer raster → cut). */
 export async function buildReceiptBytes(data: ReceiptData, layoutIn: ReceiptLayout): Promise<Uint8Array> {
   const layout = withLayoutDefaults(layoutIn);
-  const { body, footer, qrUrl } = await renderReceipt(data, layout);
+  // QR is now rendered INSIDE the body canvas (centered by canvas math).
+  // No separate ESC/POS native QR command needed — avoids ESC a alignment issues on AIYIN/
+  // XPRINTER models that ignore ESC a 1 for GS ( k commands.
+  const { body, footer } = await renderReceipt(data, layout);
   const chunks: (number[] | Uint8Array)[] = [];
-  chunks.push([0x1B, 0x40]);            // ESC @ — init
-  chunks.push(canvasToRaster(body));
-  if (qrUrl) {
-    chunks.push([0x1B, 0x61, 0x01]);    // ESC a 1 — center
-    chunks.push(qrCommand(qrUrl, layout.qrSize));
-    chunks.push([0x1B, 0x61, 0x00]);    // ESC a 0 — left
-  }
+  chunks.push([0x1B, 0x40]);            // ESC @ — init printer
+  chunks.push(canvasToRaster(body));    // body + QR (centered in raster)
   chunks.push(canvasToRaster(footer));
-  // ตัดกระดาษโดยไม่ feed บรรทัดเปล่าเกินจำเป็น — GS V A n (partial cut, feed n dots)
-  // feedAfter น้อย = ประหยัดกระดาษท้าย (เครื่องตัดส่วนใหญ่ feed ถึงตำแหน่งตัดให้เองอยู่แล้ว)
   const feed = Math.min(255, Math.max(0, Math.round(layout.feedAfter)));
-  chunks.push([0x1D, 0x56, 0x41, feed]);
+  chunks.push([0x1D, 0x56, 0x41, feed]); // GS V A — partial cut
   return concat(chunks);
 }

@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { QRCodeCanvas } from 'qrcode.react';
 import { Card, SectionHeader, FieldLabel, Btn, Toast } from './dev-ui';
 import {
   DEFAULT_RECEIPT_LAYOUT, loadReceiptLayout, saveReceiptLayout, resetReceiptLayout,
@@ -131,8 +130,6 @@ export function ReceiptTuningTab() {
     }
   }
 
-  const previewQrPx = Math.max(72, Math.round(layout.qrSize * 18));
-
   return (
     <div className="space-y-5">
       {toast && <Toast msg={toast} onClose={() => setToast(null)} />}
@@ -145,12 +142,8 @@ export function ReceiptTuningTab() {
             <div
               style={{ width: paperWidth === 32 ? 280 : 360, background: '#fff', boxShadow: '0 2px 16px rgba(0,0,0,.15)', padding: 8, borderRadius: 4 }}
             >
+              {/* QR is now rendered inside the body canvas (centered by canvas math) */}
               <canvas ref={bodyRef} style={{ width: '100%', display: 'block' }} />
-              {qrUrl && (
-                <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0' }}>
-                  <QRCodeCanvas value={qrUrl} size={previewQrPx} />
-                </div>
-              )}
               <canvas ref={footerRef} style={{ width: '100%', display: 'block' }} />
             </div>
             <p className="text-xs text-[var(--color-text-muted)] mt-3">
