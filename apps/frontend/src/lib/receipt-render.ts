@@ -163,14 +163,32 @@ function drawBody(
   dash();
 
   // Items — 4 columns, all right-aligned at their column right edges
+  //
+  // ⚠️  DO NOT use ctx.measureText() to size these columns.
+  //
+  // Reason: Canvas 2D has its own font cache separate from document.fonts. Even after
+  // ensureSarabunLoaded() resolves, a fresh canvas may measureText() with the fallback
+  // font (Noto Sans Thai / system sans-serif) which is WIDER than Sarabun. The column
+  // calculation would make QTY+PRICE+SUB columns too wide → nameW collapses to a few
+  // pixels → every product name wraps character-by-character on the printed receipt
+  // (while fillText() correctly renders with Sarabun, making dev preview look fine but
+  // the actual print come out broken on 2nd+ orders).
+  //
+  // Fix: fixed proportional widths derived from content width — deterministic, font-
+  // agnostic, and matches the visual layout tuned in the dev receipt-tuning tab.
+  //
+  //   nameW   ≈ 55 %  →  297px @ 80mm (540 content)  |  191px @ 58mm (348 content)
+  //   COL_QTY ≈ 13 %  →   70px @ 80mm                |   45px @ 58mm
+  //   COL_PRICE≈ 16 %  →   86px @ 80mm                |   56px @ 58mm
+  //   COL_SUB ≈ 16 %  →   87px @ 80mm                |   56px @ 58mm
   ctx.font = `${layout.item.fs}px ${FONT}`;
-  const COL_QTY   = Math.max(ctx.measureText('999').width, ctx.measureText('จำนวน').width) + 14;
-  const COL_PRICE = Math.max(ctx.measureText('99,999').width, ctx.measureText('ราคา').width) + 14;
-  const COL_SUB   = Math.max(ctx.measureText('99,999').width, ctx.measureText('รวม').width) + 14;
+  const COL_SUB   = Math.round(contentW * 0.16);
+  const COL_PRICE = Math.round(contentW * 0.16);
+  const COL_QTY   = Math.round(contentW * 0.13);
+  const nameW     = contentW - COL_QTY - COL_PRICE - COL_SUB;   // ≈ 55 %
   const subRight   = R;
   const priceRight = subRight - COL_SUB;
   const qtyRight   = priceRight - COL_PRICE;
-  const nameW      = qtyRight - COL_QTY - L;
 
   // Header
   const h = layout.itemHeader;
@@ -271,30 +289,45 @@ export interface RenderedReceipt {
 }
 
 /**
- * Explicitly request Sarabun 400 + 700 via FontFaceSet.load() before canvas render.
+ * Explicitly request Sarabun at every size + weight the renderer uses via FontFaceSet.load().
  *
- * document.fonts.ready resolves once all *stylesheet-declared* fonts have finished their
- * initial load cycle, but it does NOT guarantee that a specific font is actually available
- * for canvas use — especially on the first call in a new page context where the font hasn't
- * been rendered to the DOM yet. fonts.load() sends a targeted load request and resolves
- * only when those descriptors are drawable, which is exactly what Canvas needs.
+ * Why not document.fonts.ready?
+ *   fonts.ready resolves once stylesheet fonts finish their initial load, but the Canvas 2D
+ *   context has its OWN font cache. Setting ctx.font = "20px Sarabun" on a fresh canvas may
+ *   still return fallback-font metrics (wider Noto Sans Thai / system sans-serif) if the
+ *   canvas font cache hasn't registered Sarabun at that exact size yet — even if fonts.ready
+ *   has resolved. fonts.load() at the specific descriptors forces the font into the cache
+ *   before any measureText/fillText call.
+ *
+ * Why per-layout sizes?
+ *   Canvas font caching is per-descriptor — loading 38px does NOT prime the cache for 20px.
+ *   We extract every unique fs value from the active layout so all sizes are cached before
+ *   drawBody() runs. This fixes the "first print fine, subsequent prints broken" symptom
+ *   caused by the layout being tuned to non-default sizes (e.g. item.fs=20 instead of 28).
  */
-async function ensureSarabunLoaded(): Promise<void> {
+async function ensureSarabunLoaded(layout: ReceiptLayout): Promise<void> {
   if (typeof document === 'undefined' || !document.fonts) return;
   try {
-    // Load every weight + size combo the renderer actually uses
-    await Promise.all([
-      document.fonts.load('400 38px Sarabun'),
-      document.fonts.load('700 38px Sarabun'),
-    ]);
+    const SECTION_KEYS = [
+      'shopName', 'sub', 'title', 'meta', 'itemHeader', 'item', 'total', 'footer',
+    ] as const;
+    // Deduplicate sizes — user layout may set multiple sections to the same fs
+    const sizes = [...new Set(SECTION_KEYS.map((k) => layout[k].fs))];
+    await Promise.all(
+      sizes.flatMap((s) => [
+        document.fonts.load(`400 ${s}px Sarabun`),
+        document.fonts.load(`700 ${s}px Sarabun`),
+      ]),
+    );
   } catch { /* font unavailable — canvas falls back to Noto Sans Thai */ }
 }
 
 /** Render the receipt to body + footer canvases (Thai-safe). Used by both print and dev preview. */
 export async function renderReceipt(data: ReceiptData, layoutIn: ReceiptLayout): Promise<RenderedReceipt> {
   const layout = withLayoutDefaults(layoutIn); // fill missing fields → safe against stale/partial layout
-  // Wait for Sarabun to be ready in canvas context (fonts.load > fonts.ready for this use-case)
-  await ensureSarabunLoaded();
+  // Wait for Sarabun to be ready in canvas context at every size the layout actually uses.
+  // Must pass the merged layout (not the raw input) so sizes are correct after withLayoutDefaults().
+  await ensureSarabunLoaded(layout);
   const DOTS = dots(data);
   const logo = layout.showLogo && data.logoUrl ? await loadImage(data.logoUrl) : null;
   const qrUrl = data.googleReviewUrl ?? (data.receiptToken ? `https://nexapos.io/receipt/${data.receiptToken}` : null);
