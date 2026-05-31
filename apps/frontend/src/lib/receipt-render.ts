@@ -13,7 +13,9 @@
 import { withLayoutDefaults, type ReceiptData, type ReceiptLayout } from './receipt-layout';
 
 const FONT = "'Sarabun', 'Noto Sans Thai', sans-serif";
-const MAXH = 8000;
+// MAXH: ความสูงสูงสุดของ canvas กันชน (dots/px)
+// 80mm @ 203dpi ≈ 640px; ใช้ 3000 รองรับใบเสร็จยาวมาก ประหยัด RAM vs เดิม 8000 (~18MB/canvas)
+const MAXH = 3000;
 
 const PAYMENT_TH: Record<string, string> = {
   cash: 'เงินสด', card: 'บัตรเครดิต', transfer: 'โอนเงิน', qr: 'QR Code', other: 'อื่นๆ',

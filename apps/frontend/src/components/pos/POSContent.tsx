@@ -232,6 +232,12 @@ export function POSContent({ experience = 'retail' }: { experience?: PosExperien
   // btConnectedRef mirrors btConnected state — ใช้ใน async context (triggerPrint, triggerReconnect)
   // เพื่อหลีกเลี่ยง stale closure จาก React state
   const btConnectedRef = useRef(false);
+
+  // ── Print mutex ──────────────────────────────────────────────────────────────
+  // ป้องกัน concurrent print jobs ที่ทำให้ BT/USB bytes สลับกัน → output เละ
+  // printQueue เก็บ job ที่รอ; isPrintingRef = true เมื่อมี job กำลัง run อยู่
+  const isPrintingRef  = useRef(false);
+  const printQueue     = useRef<Array<() => Promise<void>>>([]);
   const [btConnected,  setBtConnected]  = useState(false);
   const [btConnecting, setBtConnecting] = useState(false);
   const hasBluetooth = typeof navigator !== 'undefined' && 'bluetooth' in navigator;
@@ -879,6 +885,30 @@ export function POSContent({ experience = 'retail' }: { experience?: PosExperien
     });
   }
 
+  /**
+   * Enqueue a print job and drain the queue serially.
+   *
+   * Problem: triggerPrint is called without await (fire-and-forget) so successive
+   * orders can start a second print while the first is still streaming bytes over
+   * BT/USB.  Two concurrent writeValue() calls on the same characteristic interleave
+   * bytes → the printer's state machine gets confused → garbled output on 2nd+ prints.
+   *
+   * Fix: every job is pushed onto a FIFO queue; the drainer runs one job at a time and
+   * only starts the next after the previous awaits to completion.
+   */
+  function enqueuePrint(job: () => Promise<void>): void {
+    printQueue.current.push(job);
+    if (isPrintingRef.current) return; // drainer already running — job will be picked up
+    void (async () => {
+      isPrintingRef.current = true;
+      while (printQueue.current.length > 0) {
+        const next = printQueue.current.shift();
+        if (next) { try { await next(); } catch { /* individual job errors handled inside */ } }
+      }
+      isPrintingRef.current = false;
+    })();
+  }
+
   async function triggerPrint(order: {
     orderId: string; total: number; cart: CartItem[]; orderNumber: number;
     shopName: string; vatEnabled: boolean; discount: number;
@@ -889,49 +919,48 @@ export function POSContent({ experience = 'retail' }: { experience?: PosExperien
   }, force = false) {
     if (!printerEnabled) return;
 
-    // ── ESC/POS direct print (Bluetooth / USB / Network) ─────────────────────
-    // ส่งไบต์ ESC/POS โดยตรง ไม่ผ่าน browser print dialog
-    if (printerMode === 'bluetooth') {
-      // ใช้ btConnectedRef (ref ไม่มี stale closure) แทน btConnected (state)
-      if (!btConnectedRef.current && hasBluetooth) {
-        // silent reconnect — ลองต่อใหม่จาก getDevices() ก่อน (ไม่ต้องมี user gesture)
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const devices: any[] = await (navigator as any).bluetooth?.getDevices?.() ?? [];
-          const savedName = localStorage.getItem('pos_bt_printer_name');
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const dev = savedName ? (devices.find((d: any) => d.name === savedName) ?? devices[0]) : devices[0];
-          if (dev) await connectBtDevice(dev, true);
-        } catch { /* ignore */ }
-      }
-      // ตรวจ btCharRef.current โดยตรง (ไม่รอ state update cycle)
-      if (btCharRef.current) {
-        const ok = await printBluetooth(await buildReceiptBytes(toReceiptData(order), loadReceiptLayout()));
-        if (ok) return;
-        toast.error('Bluetooth print ล้มเหลว — ตรวจสอบการเชื่อมต่อ');
-      } else {
-        toast.error('เครื่องปริ๊น Bluetooth ยังไม่ได้เชื่อมต่อ — กรุณาแตะปุ่ม 📶 ในแถบด้านบนเพื่อจับคู่');
-      }
-      return;
-    }
-    if (printerMode === 'usb') {
-      if (usbConnected) {
-        const ok = await printUsb(await buildReceiptBytes(toReceiptData(order), loadReceiptLayout()));
-        if (ok) return;
-        toast.error('USB print ล้มเหลว — ตรวจสอบการเชื่อมต่อ');
-      } else {
-        toast.error('ยังไม่ได้เชื่อมต่อ USB printer');
-      }
-      return;
-    }
-    if (printerMode === 'network') {
-      if (printerNetIP) {
-        const ok = await printNetwork(await buildReceiptBytes(toReceiptData(order), loadReceiptLayout()));
-        if (ok) return;
-        toast.error('Network print ล้มเหลว — ตรวจสอบ IP เครื่องปริ๊น');
-      } else {
-        toast.error('ยังไม่ได้ตั้งค่า IP เครื่องปริ๊น');
-      }
+    // ── ESC/POS direct print — ห่อด้วย print queue ──────────────────────────
+    // ทุก mode (BT/USB/Network) ต้องผ่าน enqueuePrint เพื่อป้องกัน concurrent writes
+    if (printerMode === 'bluetooth' || printerMode === 'usb' || printerMode === 'network') {
+      const snapshot = { order: { ...order, cart: [...order.cart] }, mode: printerMode };
+      enqueuePrint(async () => {
+        if (snapshot.mode === 'bluetooth') {
+          if (!btConnectedRef.current && hasBluetooth) {
+            try {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const devices: any[] = await (navigator as any).bluetooth?.getDevices?.() ?? [];
+              const savedName = localStorage.getItem('pos_bt_printer_name');
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const dev = savedName ? (devices.find((d: any) => d.name === savedName) ?? devices[0]) : devices[0];
+              if (dev) await connectBtDevice(dev, true);
+            } catch { /* ignore */ }
+          }
+          if (btCharRef.current) {
+            const ok = await printBluetooth(await buildReceiptBytes(toReceiptData(snapshot.order), loadReceiptLayout()));
+            if (!ok) toast.error('Bluetooth print ล้มเหลว — ตรวจสอบการเชื่อมต่อ');
+          } else {
+            toast.error('เครื่องปริ๊น Bluetooth ยังไม่ได้เชื่อมต่อ — กรุณาแตะปุ่ม 📶 ในแถบด้านบนเพื่อจับคู่');
+          }
+          return;
+        }
+        if (snapshot.mode === 'usb') {
+          if (usbConnected) {
+            const ok = await printUsb(await buildReceiptBytes(toReceiptData(snapshot.order), loadReceiptLayout()));
+            if (!ok) toast.error('USB print ล้มเหลว — ตรวจสอบการเชื่อมต่อ');
+          } else {
+            toast.error('ยังไม่ได้เชื่อมต่อ USB printer');
+          }
+          return;
+        }
+        if (snapshot.mode === 'network') {
+          if (printerNetIP) {
+            const ok = await printNetwork(await buildReceiptBytes(toReceiptData(snapshot.order), loadReceiptLayout()));
+            if (!ok) toast.error('Network print ล้มเหลว — ตรวจสอบ IP เครื่องปริ๊น');
+          } else {
+            toast.error('ยังไม่ได้ตั้งค่า IP เครื่องปริ๊น');
+          }
+        }
+      });
       return;
     }
 
