@@ -48,6 +48,24 @@ async function loadImage(url: string): Promise<HTMLImageElement | null> {
   }
 }
 
+// ── Deterministic text width estimate ──────────────────────────────────────────
+// ห้ามใช้ ctx.measureText() ตัดสิน layout ของบรรทัดสำคัญ (เหตุผลเดียวกับคอลัมน์สินค้า
+// ด้านล่าง): ตอนพิมพ์จริง canvas สร้างใหม่ อาจวัดด้วย font fallback → ผลไม่ตรงกับ
+// dev preview (ที่ canvas อุ่นแล้ว) → ข้อความทับกัน/ตกบรรทัดไม่เท่ากัน
+// ใช้ค่าสัมประสิทธิ์เผื่อกว้าง (Noto Sans Thai กว้างกว่า Sarabun) — ถ้าสูตรบอก "พอดี" คือพอดีจริง
+const THAI_ZERO_WIDTH = /[ัิ-ฺ็-๎]/; // สระบน-ล่าง/วรรณยุกต์ไทย = ความกว้าง 0
+function estTextWidth(text: string, fs: number): number {
+  let units = 0;
+  for (const ch of text) {
+    if (THAI_ZERO_WIDTH.test(ch)) continue;
+    if (ch === ' ') units += 0.33;
+    else if (/[0-9]/.test(ch)) units += 0.58;
+    else if (/[.,:;'#]/.test(ch)) units += 0.30;
+    else units += 0.74; // ไทย/ละตินตัวเต็มความกว้าง (เผื่อตัวหนา)
+  }
+  return units * fs;
+}
+
 /** Wrap a string to lines that fit maxW with the ctx's current font. */
 function wrapText(ctx: CanvasRenderingContext2D, text: string, maxW: number): string[] {
   if (ctx.measureText(text).width <= maxW) return [text];
@@ -247,22 +265,27 @@ function drawBody(
   }
 
   // Grand total — overflow-safe: ถ้า label + value กว้างเกิน contentW ให้แยก 2 บรรทัด
+  //
+  // ⚠️  ตัดสิน 1/2 บรรทัดด้วย estTextWidth() (deterministic) — ห้ามใช้ ctx.measureText()
+  // เพราะตอนพิมพ์จริง canvas เย็นอาจวัดด้วย font fallback → ตัดสินผิด → ยอดรวมทับราคา
+  // และผลพิมพ์ไม่ตรงกับ dev preview (ดูคอมเมนต์ยาวที่หัวตารางสินค้าด้านบน)
   {
     const s = layout.total;
     const totalLabel = 'ยอดรวมทั้งหมด';
     const totalValue = `${money(data.total)} บาท`;
     ctx.font = `700 ${s.fs}px ${FONT}`; ctx.fillStyle = '#000';
-    const labelW = ctx.measureText(totalLabel).width;
-    const valueW = ctx.measureText(totalValue).width;
-    if (labelW + valueW + 20 <= contentW) {
+    const estW = estTextWidth(totalLabel, s.fs) + estTextWidth(totalValue, s.fs);
+    // กันบรรทัดทับแนวตั้ง: ถ้าผู้ใช้จูน lh เล็กกว่า fs ให้เลื่อนอย่างน้อย fs × 1.3
+    const advance = Math.max(s.lh, Math.ceil(s.fs * 1.3));
+    if (estW + 24 <= contentW) {
       // พอดี — บรรทัดเดียว
       ctx.textAlign = 'left';  ctx.fillText(totalLabel, L, y);
       ctx.textAlign = 'right'; ctx.fillText(totalValue, R, y);
-      y += s.lh;
+      y += advance;
     } else {
       // ล้นเกิน — label บรรทัดแรก, value บรรทัดถัดไปชิดขวา
-      ctx.textAlign = 'left';  ctx.fillText(totalLabel, L, y); y += s.lh;
-      ctx.textAlign = 'right'; ctx.fillText(totalValue, R, y); y += s.lh;
+      ctx.textAlign = 'left';  ctx.fillText(totalLabel, L, y); y += advance;
+      ctx.textAlign = 'right'; ctx.fillText(totalValue, R, y); y += advance;
     }
   }
 
@@ -327,7 +350,12 @@ async function ensureSarabunLoaded(layout: ReceiptLayout): Promise<void> {
       'shopName', 'sub', 'title', 'meta', 'itemHeader', 'item', 'total', 'footer',
     ] as const;
     // Deduplicate sizes — user layout may set multiple sections to the same fs
-    const sizes = [...new Set(SECTION_KEYS.map((k) => layout[k].fs))];
+    // รวมขนาด derived ของบรรทัด "NexaPos · ร้าน" ใน footer (fs - 4) ด้วย — ไม่งั้น
+    // ขนาดนั้นไม่ถูก prime เข้า canvas cache → พิมพ์จริงด้วย font fallback
+    const sizes = [...new Set([
+      ...SECTION_KEYS.map((k) => layout[k].fs),
+      Math.max(12, layout.footer.fs - 4),
+    ])];
     await Promise.all(
       sizes.flatMap((s) => [
         document.fonts.load(`400 ${s}px Sarabun`),
@@ -386,20 +414,18 @@ export async function renderReceipt(data: ReceiptData, layoutIn: ReceiptLayout):
 
   // QR is rendered INSIDE the body canvas (raster, centered by canvas math).
   // drawBody() draws the QR label text; then we draw the actual QR image right after.
-  let bodyCanvas!: HTMLCanvasElement;
-  await new Promise<void>((resolve) => {
-    bodyCanvas = renderBlock(DOTS, (ctx) => drawBody(ctx, data, layout, DOTS, logo, qrUrl));
-    resolve();
-  });
+  // renderBlock is synchronous — no Promise wrapper needed.
+  let bodyCanvas: HTMLCanvasElement = renderBlock(DOTS, (ctx) => drawBody(ctx, data, layout, DOTS, logo, qrUrl));
 
   // Append QR image below body content (if qrUrl exists)
   if (qrUrl) {
     const bodyH = bodyCanvas.height;
-    // Grow the body canvas to fit QR below
+    // Grow the body canvas to fit QR below.
+    // Upper bound: scale × (max_modules + 2 border modules). QR version 5 = 37 modules;
+    // with margin=1 → 39 effective modules. Using 42 as safe headroom above 39.
+    const estQrH = Math.round(layout.qrSize) * 42 + 16;
     const ext = document.createElement('canvas');
     ext.width = DOTS;
-    // Estimate QR size: scale * (modules + 2*margin_modules). Use a safe upper bound (200px).
-    const estQrH = Math.round(layout.qrSize) * 45 + 16; // version~5 → 37 modules + 1*2 border = 39 → × scale
     ext.height = bodyH + estQrH;
     const ectx = ext.getContext('2d')!;
     ectx.fillStyle = '#ffffff'; ectx.fillRect(0, 0, DOTS, ext.height);
@@ -441,19 +467,6 @@ export function canvasToRaster(cv: HTMLCanvasElement): Uint8Array {
   return out;
 }
 
-/** ESC/POS native QR command bytes (GS ( k), model 2. */
-function qrCommand(url: string, cellSize: number): number[] {
-  const size = Math.min(16, Math.max(1, Math.round(cellSize)));
-  const urlBytes = Array.from(new TextEncoder().encode(url));
-  const dataLen = urlBytes.length + 3;
-  return [
-    0x1D, 0x28, 0x6B, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00,          // model 2
-    0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x43, size,                 // module size
-    0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x45, 0x31,                 // error correction M
-    0x1D, 0x28, 0x6B, dataLen & 0xFF, (dataLen >> 8) & 0xFF, 0x31, 0x50, 0x30, ...urlBytes, // store
-    0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x51, 0x30,                 // print
-  ];
-}
 
 function concat(chunks: (number[] | Uint8Array)[]): Uint8Array {
   let len = 0; for (const c of chunks) len += c.length;

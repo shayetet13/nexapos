@@ -1074,7 +1074,7 @@ export function POSContent({ experience = 'retail' }: { experience?: PosExperien
                             const opening = activeNavTab !== 'history';
                             setActiveNavTab(opening ? 'history' : null);
                             setTodayOrdersOpen(opening);
-                            if (opening) fetchTodayOrders();
+                            if (opening) void fetchTodayOrders();
                           } else {
                             setActiveNavTab((prev) => prev === tab.id ? null : tab.id as typeof prev);
                           }
@@ -1099,7 +1099,7 @@ export function POSContent({ experience = 'retail' }: { experience?: PosExperien
                     const opening = activeNavTab !== 'history';
                     setActiveNavTab(opening ? 'history' : null);
                     setTodayOrdersOpen(opening);
-                    if (opening) fetchTodayOrders();
+                    if (opening) void fetchTodayOrders();
                   } else {
                     setActiveNavTab(prev => prev === tab.id ? null : tab.id as typeof prev);
                   }
@@ -1153,7 +1153,7 @@ export function POSContent({ experience = 'retail' }: { experience?: PosExperien
                 const opening = !todayOrdersOpen;
                 setTodayOrdersOpen(opening);
                 setActiveNavTab(opening ? 'history' : null);
-                if (opening) fetchTodayOrders();
+                if (opening) void fetchTodayOrders();
               }}
             >
               🧾 {orderNumber - 1} {t.orders} {todayOrdersOpen ? '▲' : '▼'}
@@ -1514,8 +1514,8 @@ export function POSContent({ experience = 'retail' }: { experience?: PosExperien
             clearCart();
             setCheckoutOpen(false);
             setSelectedCustomer(null);
-            fetchStats();
-            setTodayOrdersOpen(prev => { if (prev) fetchTodayOrders(); return prev; });
+            void fetchStats();
+            setTodayOrdersOpen(prev => { if (prev) void fetchTodayOrders(); return prev; });
           }}
         />
       )}

@@ -165,8 +165,7 @@ const ordersRoutes: FastifyPluginAsync = async (app) => {
         throw new ForbiddenError('No access to this shop');
       }
 
-      const VALID_STATUSES = VALID_ORDER_STATUSES;
-      const status = req.query.status && VALID_STATUSES.includes(req.query.status) ? req.query.status : undefined;
+      const status = req.query.status && VALID_ORDER_STATUSES.includes(req.query.status) ? req.query.status : undefined;
       const seq    = req.query.seq ? Number(req.query.seq) : undefined;
       const date   = req.query.date && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date) ? req.query.date : undefined;
       const ref    = req.query.ref ? String(req.query.ref).trim().toUpperCase() : undefined;
@@ -188,8 +187,7 @@ const ordersRoutes: FastifyPluginAsync = async (app) => {
         throw new ForbiddenError('No access to this shop');
       }
 
-      const VALID_STATUSES = VALID_ORDER_STATUSES;
-      const status = req.query.status && VALID_STATUSES.includes(req.query.status) ? req.query.status : undefined;
+      const status = req.query.status && VALID_ORDER_STATUSES.includes(req.query.status) ? req.query.status : undefined;
       const seq    = req.query.seq ? Number(req.query.seq) : undefined;
       const date   = req.query.date && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date) ? req.query.date : undefined;
       const ref    = req.query.ref ? String(req.query.ref).trim().toUpperCase() : undefined;

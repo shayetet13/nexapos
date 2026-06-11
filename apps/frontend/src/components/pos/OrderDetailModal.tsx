@@ -1,5 +1,6 @@
 'use client';
 
+import { toast } from 'sonner';
 import { PAY_ICONS, STATUS_STYLES, STATUS_TH, type OrderDetail } from './pos-types';
 
 export function OrderDetailModal({
@@ -35,8 +36,8 @@ export function OrderDetailModal({
         w.onload = () => { void w.document.fonts.ready.then(() => { w.print(); }); };
       }
     } else {
-      // ออเดอร์เก่าที่ไม่มี receipt_token — ไม่มีทางเปิด receipt page ได้
-      window.alert('ออเดอร์นี้ไม่มีลิงก์ใบเสร็จ (ออเดอร์เก่า)');
+      // ออเดอร์เก่าที่ไม่มี receipt_token — แสดง toast แทน window.alert (ไม่ block JS)
+      toast.error('ออเดอร์นี้ไม่มีลิงก์ใบเสร็จ (ออเดอร์เก่า)');
     }
   }
 
