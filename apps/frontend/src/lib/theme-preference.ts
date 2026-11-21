@@ -55,6 +55,9 @@ export function persistThemeSelection(theme: AppTheme, userId: string | null | u
 export function applyThemeToDocument(theme: AppTheme): void {
   if (typeof window === 'undefined') return;
   const root = document.documentElement;
+  // Idempotent — ถ้าธีมตรงอยู่แล้วไม่แตะ DOM (กันธีมกระพริบจากการทาซ้ำหลายรอบตอน mount)
+  const current = root.getAttribute('data-theme') ?? 'light';
+  if (current === theme) return;
   if (theme === 'light') root.removeAttribute('data-theme');
   else root.setAttribute('data-theme', theme);
 }
@@ -73,16 +76,26 @@ function applyGuestOrDefault(): void {
 /**
  * เรียกเมื่อ session เปลี่ยน (Supabase onAuthStateChange)
  * ราย user อ่านเฉพาะ key ของ user นี้ (ไม่ดึง guest มา — กัน user อื่นค้างเครื่องเดียว)
+ *
+ * applyVisual=false → อัปเดตเฉพาะ bookkeeping (ACTIVE_USER_KEY) ไม่แตะธีมบนจอ
+ * ใช้กับ INITIAL_SESSION ตอนรีเฟรชหน้า: inline script ใน <head> ทาธีมถูกต้องไปแล้ว
+ * การทาซ้ำตรงนี้ (ยิง async หลัง restore session) คือต้นเหตุธีมสลับไปมาบนหน้า login/register
  */
-export function syncThemeWithSession(userId: string | null | undefined): void {
+export function syncThemeWithSession(
+  userId: string | null | undefined,
+  opts: { applyVisual?: boolean } = {},
+): void {
   if (typeof window === 'undefined') return;
+  const applyVisual = opts.applyVisual !== false;
   if (userId) {
     safeSet(ACTIVE_USER_KEY, userId);
+    if (!applyVisual) return;
     const t = getPersistedThemeForUserId(userId);
     if (t) applyThemeToDocument(t);
     else applyThemeToDocument(getDefaultDeviceTheme());
   } else {
     safeRemove(ACTIVE_USER_KEY);
+    if (!applyVisual) return;
     applyGuestOrDefault();
   }
 }

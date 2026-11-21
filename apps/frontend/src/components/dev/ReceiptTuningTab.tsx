@@ -4,8 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Card, SectionHeader, FieldLabel, Btn, Toast } from './dev-ui';
 import {
   DEFAULT_RECEIPT_LAYOUT, loadReceiptLayout, saveReceiptLayout, resetReceiptLayout,
-  MOCK_RECEIPT_ORDER, type ReceiptLayout, type SectionStyle, type ReceiptData,
+  withLayoutDefaults, MOCK_RECEIPT_ORDER, type ReceiptLayout, type SectionStyle, type ReceiptData,
 } from '@/lib/receipt-layout';
+import { fetchWithAuth } from '@/lib/supabase';
+import { API_URL } from '@/lib/config';
 import { renderReceipt, buildReceiptBytes } from '@/lib/receipt-render';
 import {
   hasBluetooth, hasUsb,
@@ -28,8 +30,11 @@ const SECTION_LABELS: Record<keyof Pick<ReceiptLayout, 'shopName' | 'sub' | 'tit
   footer:     'ท้ายใบเสร็จ',
 };
 
-export function ReceiptTuningTab() {
+export function ReceiptTuningTab({ shops = [] }: { shops?: { id: string; name: string }[] }) {
   const [layout, setLayout]   = useState<ReceiptLayout>(() => loadReceiptLayout());
+  // ── Shop config (server) — sync layout ข้ามทุกเครื่อง ─────────────────────
+  const [serverShopId, setServerShopId] = useState('');
+  const [serverBusy,   setServerBusy]   = useState(false);
   // ── Paper width: ดึงจาก localStorage ของ POS จริง ─────────────────────────
   // pos_printer_width_<shopId> ถูกบันทึกไว้ตอน POS โหลด shop config
   // Dev tab อ่านค่านี้เพื่อให้ preview ตรงกับกระดาษที่ใช้จริง
@@ -115,6 +120,46 @@ export function ReceiptTuningTab() {
       setToast({ type: 'ok', text: 'คัดลอก JSON แล้ว — นำไปวางใน DEFAULT_RECEIPT_LAYOUT เพื่อฝังเป็นค่าถาวร' });
     } catch {
       setToast({ type: 'err', text: 'คัดลอกไม่สำเร็จ' });
+    }
+  }
+
+  // ── Server sync — โหลด/บันทึก layout ของร้านที่เลือก ──────────────────────
+  async function handleLoadFromShop(shopId: string) {
+    setServerShopId(shopId);
+    if (!shopId) return;
+    setServerBusy(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/api/v1/dev/shops/${shopId}/receipt-layout`);
+      const j = await res.json().catch(() => ({}));
+      if (res.ok && j.data) {
+        setLayout(withLayoutDefaults(j.data as Partial<ReceiptLayout>));
+        setToast({ type: 'ok', text: 'โหลด layout ของร้านแล้ว' });
+      } else if (res.ok) {
+        setToast({ type: 'ok', text: 'ร้านนี้ยังไม่เคยบันทึก layout — ใช้ค่าปัจจุบันบนหน้าจอ' });
+      } else {
+        setToast({ type: 'err', text: 'โหลด layout ไม่สำเร็จ' });
+      }
+    } catch {
+      setToast({ type: 'err', text: 'โหลด layout ไม่สำเร็จ' });
+    } finally {
+      setServerBusy(false);
+    }
+  }
+
+  async function handleSaveToShop() {
+    if (!serverShopId) { setToast({ type: 'err', text: 'เลือกร้านก่อนบันทึก' }); return; }
+    setServerBusy(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/api/v1/dev/shops/${serverShopId}/receipt-layout`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(layout),
+      });
+      if (res.ok) setToast({ type: 'ok', text: '☁️ บันทึกขึ้นร้านแล้ว — ทุกเครื่องของร้านนี้จะใช้ layout นี้เมื่อเปิด POS ครั้งถัดไป' });
+      else setToast({ type: 'err', text: 'บันทึกขึ้นร้านไม่สำเร็จ' });
+    } catch {
+      setToast({ type: 'err', text: 'บันทึกขึ้นร้านไม่สำเร็จ' });
+    } finally {
+      setServerBusy(false);
     }
   }
 
@@ -286,6 +331,26 @@ export function ReceiptTuningTab() {
                 {mode !== 'network' && <Btn variant="ghost" onClick={() => void handleConnect()}>🔗 เชื่อมต่อ</Btn>}
                 <Btn variant="primary" onClick={() => void handlePrint()} disabled={printing}>{printing ? '⏳ กำลังพิมพ์...' : '🖨 พิมพ์จริง'}</Btn>
               </div>
+            </div>
+          </Card>
+
+          <Card>
+            <SectionHeader title="☁️ Shop Config (sync ทุกเครื่อง)" desc="บันทึก layout ขึ้น server ต่อร้าน — POS ทุกเครื่องของร้านจะดึงค่านี้อัตโนมัติ" />
+            <div className="px-6 py-4 space-y-3">
+              <div>
+                <FieldLabel>ร้าน</FieldLabel>
+                <select
+                  className="w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-sm"
+                  value={serverShopId}
+                  onChange={(e) => void handleLoadFromShop(e.target.value)}
+                >
+                  <option value="">— เลือกร้าน —</option>
+                  {shops.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+              <Btn variant="primary" onClick={() => void handleSaveToShop()} disabled={serverBusy || !serverShopId}>
+                {serverBusy ? '⏳ กำลังทำงาน...' : '☁️ บันทึกขึ้นร้าน'}
+              </Btn>
             </div>
           </Card>
 

@@ -6,6 +6,7 @@ import { API_URL } from '@/lib/config';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { toast } from 'sonner';
 import { loadReceiptLayout, saveReceiptLayout } from '@/lib/receipt-layout';
+import { PromptPayVerifyCard } from '@/components/admin/PromptPayVerifyCard';
 
 export interface Branch {
   id: string;
@@ -621,6 +622,8 @@ export function SettingsTab({
           </div>
         </div>
       </div>
+
+      <PromptPayVerifyCard shopId={shopId} />
 
       {/* Telegram OTP */}
       <div className="page-admin__card">

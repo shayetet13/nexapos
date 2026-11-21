@@ -46,6 +46,36 @@ function generateStaffEmail(shopId: string): string {
 
 const VALID_ROLES = ['manager', 'cashier', 'viewer'] as const;
 
+/** Layout ใบเสร็จ ESC/POS — โครงสร้างต้องตรงกับ ReceiptLayout ฝั่ง frontend (receipt-layout.ts) */
+const sectionStyleSchema = z.object({
+  fs: z.number().min(8).max(120),
+  lh: z.number().min(8).max(200),
+});
+export const receiptLayoutSchema = z.object({
+  marginTop:    z.number().min(0).max(200),
+  marginBottom: z.number().min(0).max(200),
+  marginLeft:   z.number().min(0).max(120),
+  marginRight:  z.number().min(0).max(120),
+  showLogo:     z.boolean(),
+  logoDiameter: z.number().min(20).max(400),
+  qrSize:       z.number().min(1).max(16),
+  totalTextGap: z.number().min(0).max(200),
+  totalLineGap: z.number().min(-100).max(200),
+  dashGap:      z.number().min(0).max(100),
+  dashOffset:   z.number().min(-50).max(50),
+  titleGap:     z.number().min(0).max(100),
+  itemGap:      z.number().min(0).max(100),
+  feedAfter:    z.number().min(0).max(255),
+  shopName:   sectionStyleSchema,
+  sub:        sectionStyleSchema,
+  title:      sectionStyleSchema,
+  meta:       sectionStyleSchema,
+  itemHeader: sectionStyleSchema,
+  item:       sectionStyleSchema,
+  total:      sectionStyleSchema,
+  footer:     sectionStyleSchema,
+}).strip(); // ตัด field แปลกปลอม (เช่น _v จาก localStorage) ทิ้งก่อนเก็บ DB
+
 const updateShopSchema = z.object({
   name:                  z.string().min(1, 'Name is required').max(200).trim().optional(),
   logo_url:              z.string().url('logo_url must be a valid URL').nullable().optional(),
@@ -61,6 +91,7 @@ const updateShopSchema = z.object({
     .optional(),
   print_receipt_enabled: z.boolean().optional(),
   printer_width:         z.number().int().refine((n) => n === 32 || n === 48, 'printer_width must be 32 or 48').nullable().optional(),
+  receipt_layout:        receiptLayoutSchema.nullable().optional(),
   membership_config:     z.object({
     enabled:                    z.boolean().optional(),
     points_per_10_baht:         z.number().int().min(1).max(100).optional(),
@@ -269,6 +300,7 @@ const shopsRoutes: FastifyPluginAsync = async (app) => {
         promptpay_number:      decrypt(shop.promptpay_number_encrypted),
         print_receipt_enabled: shop.print_receipt_enabled,
         printer_width:         shop.printer_width     ?? null,
+        receipt_layout:        (shop.receipt_layout as object) ?? null,
         shop_code:             shop.shop_code         ?? null,
         province:              shop.province          ?? null,
         district:              shop.district          ?? null,
@@ -305,6 +337,7 @@ const shopsRoutes: FastifyPluginAsync = async (app) => {
         vat_enabled:           shop.vat_enabled,
         print_receipt_enabled: shop.print_receipt_enabled,
         printer_width:         shop.printer_width         ?? null,
+        receipt_layout:        (shop.receipt_layout as object) ?? null,
         membership_config:     (shop.membership_config as object) ?? null,
         // Receipt print fields — non-sensitive display data needed by POS image print
         phone:                 shop.phone                 ?? null,
@@ -404,6 +437,7 @@ const shopsRoutes: FastifyPluginAsync = async (app) => {
         promptpay_number:      decrypt(shop.promptpay_number_encrypted),
         print_receipt_enabled: shop.print_receipt_enabled,
         printer_width:         shop.printer_width     ?? null,
+        receipt_layout:        (shop.receipt_layout as object) ?? null,
         membership_config:     (shop.membership_config as object) ?? null,
         phone:                 shop.phone              ?? null,
         tax_id:                shop.tax_id             ?? null,

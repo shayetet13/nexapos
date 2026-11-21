@@ -19,9 +19,12 @@ import { shopRepository } from '../repositories/shop.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
 import { subscriptionRepository } from '../repositories/subscription.repository.js';
 import { requireDevAdmin, isDevAdmin } from '../lib/dev-guard.js';
+import { VERIFY_BASE_URL_KEY, normalizeBaseUrl, invalidateBaseUrlCache } from '../lib/promptpay-verify-api.js';
+import { audit } from '../lib/audit.js';
 import { PLAN_CONFIG, calcExpiresAt } from '../lib/subscription-plans.js';
 import { NotFoundError, ValidationError } from '../lib/errors.js';
 import { decrypt } from '../lib/crypto.js';
+import { receiptLayoutSchema } from './shops.js';
 
 // ── In-memory PIN store (dev reset only) ─────────────────────────────────
 const RESET_PIN_EMAIL = 'ipbpower@gmail.com';
@@ -291,6 +294,26 @@ const devRoutes: FastifyPluginAsync = async (app) => {
     await userRepository.deleteUser(req.params.userId);
     return reply.send({ success: true, data: null, meta: meta(req) });
   });
+
+  // GET /dev/shops/:shopId/receipt-layout — layout ใบเสร็จปัจจุบันของร้าน
+  app.get<{ Params: { shopId: string } }>('/shops/:shopId/receipt-layout', { preHandler: [app.auth] }, async (req, reply) => {
+    await requireDevAdmin(req);
+    const shop = await shopRepository.getShopById(req.params.shopId);
+    if (!shop) throw new NotFoundError('Shop');
+    return reply.send({ success: true, data: (shop.receipt_layout as object) ?? null, meta: meta(req) });
+  });
+
+  // PUT /dev/shops/:shopId/receipt-layout — บันทึก layout ใบเสร็จขึ้นร้าน (sync ทุกเครื่อง)
+  app.put<{ Params: { shopId: string }; Body: unknown }>(
+    '/shops/:shopId/receipt-layout', { preHandler: [app.auth] }, async (req, reply) => {
+      await requireDevAdmin(req);
+      const parsed = receiptLayoutSchema.nullable().safeParse(req.body);
+      if (!parsed.success) throw new ValidationError(parsed.error.flatten().fieldErrors);
+      const shop = await shopRepository.updateShop(req.params.shopId, { receipt_layout: parsed.data });
+      if (!shop) throw new NotFoundError('Shop');
+      return reply.send({ success: true, data: (shop.receipt_layout as object) ?? null, meta: meta(req) });
+    },
+  );
 
   // GET /dev/shops/:shopId/subscription
   app.get<{ Params: { shopId: string } }>('/shops/:shopId/subscription', { preHandler: [app.auth] }, async (req, reply) => {
@@ -783,6 +806,7 @@ const devRoutes: FastifyPluginAsync = async (app) => {
   // POST /dev/reset/request-pin — ขอ PIN รีเซต (dev only)
   // ── GET /dev/settings ───────────────────────────────────────────────────────
   app.get('/settings', { preHandler: [app.auth] }, async (req, reply) => {
+    await requireDevAdmin(req);
     const rows = await db.select().from(appSettings);
     const data = Object.fromEntries(rows.map((r) => [r.key, r.value]));
     return reply.send({ success: true, data, meta: meta(req) });
@@ -790,17 +814,33 @@ const devRoutes: FastifyPluginAsync = async (app) => {
 
   // ── PUT /dev/settings ───────────────────────────────────────────────────────
   app.put<{ Body: unknown }>('/settings', { preHandler: [app.auth] }, async (req, reply) => {
+    await requireDevAdmin(req);
     const bodySchema = z.record(z.string(), z.string());
     const parse = bodySchema.safeParse(req.body);
     if (!parse.success) {
       return reply.status(400).send({ success: false, error: { message: 'Invalid body' }, meta: meta(req) });
     }
-    for (const [key, value] of Object.entries(parse.data)) {
+    const entries: Record<string, string> = { ...parse.data };
+    // base URL ของ verify API: ต้องเป็น https origin (ว่าง = ล้างค่า)
+    if (VERIFY_BASE_URL_KEY in entries) {
+      const raw = entries[VERIFY_BASE_URL_KEY]!.trim();
+      const normalized = raw === '' ? '' : normalizeBaseUrl(raw);
+      if (normalized === null) {
+        return reply.status(400).send({ success: false, error: { message: 'URL ต้องเป็น https เช่น https://api.example.com' }, meta: meta(req) });
+      }
+      entries[VERIFY_BASE_URL_KEY] = normalized;
+    }
+    for (const [key, value] of Object.entries(entries)) {
       await db.insert(appSettings)
         .values({ key, value, updated_at: new Date() })
         .onConflictDoUpdate({ target: appSettings.key, set: { value, updated_at: new Date() } });
     }
-    return reply.send({ success: true, data: parse.data, meta: meta(req) });
+    invalidateBaseUrlCache();
+    audit.adminAction({
+      event: 'update_app_settings', request_id: req.id, user_id: req.auth?.userId ?? null, ip_address: req.ip,
+      changes: { keys: Object.keys(entries) },
+    });
+    return reply.send({ success: true, data: entries, meta: meta(req) });
   });
 
   // POST /dev/shops/:shopId/products/restore — restore all soft-deleted products for a shop

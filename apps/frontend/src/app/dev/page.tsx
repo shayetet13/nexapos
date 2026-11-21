@@ -773,7 +773,7 @@ export default function DevDashboardPage() {
             {activeTab === 'logs'       && <LogsTab shops={shops} />}
             {activeTab === 'settings'   && <SettingsTab />}
             {activeTab === 'shop_modes' && <ShopModesTab />}
-            {activeTab === 'receipt'    && <ReceiptTuningTab />}
+            {activeTab === 'receipt'    && <ReceiptTuningTab shops={shops} />}
 
           </div>
         </div>

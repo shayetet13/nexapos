@@ -121,6 +121,7 @@ export const shopRepository = {
     promptpay_number_encrypted?: string | null;
     print_receipt_enabled?: boolean;
     printer_width?: number | null;
+    receipt_layout?: Record<string, unknown> | null;
     membership_config?: Record<string, unknown> | null;
     phone?: string | null;
     tax_id?: string | null;
@@ -139,6 +140,7 @@ export const shopRepository = {
     if (data.promptpay_number_encrypted !== undefined) updates.promptpay_number_encrypted = data.promptpay_number_encrypted;
     if (data.print_receipt_enabled      !== undefined) updates.print_receipt_enabled      = data.print_receipt_enabled;
     if (data.printer_width              !== undefined) updates.printer_width              = data.printer_width;
+    if (data.receipt_layout             !== undefined) updates.receipt_layout             = data.receipt_layout;
     if (data.membership_config          !== undefined) updates.membership_config          = data.membership_config;
     if (data.phone                      !== undefined) updates.phone                      = data.phone;
     if (data.tax_id                     !== undefined) updates.tax_id                     = data.tax_id;

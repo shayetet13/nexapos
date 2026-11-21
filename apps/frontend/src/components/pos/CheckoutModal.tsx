@@ -37,6 +37,26 @@ const PAYMENT_METHODS = [
 type PayMethod = 'cash' | 'qr';
 
 
+interface VerifyPayment {
+  id: string;
+  status: 'queued' | 'pending' | 'succeeded' | 'ambiguous' | 'expired' | 'cancelled';
+  qr_payload: string | null;
+}
+const VERIFY_TERMINAL = new Set(['succeeded', 'ambiguous', 'expired', 'cancelled']);
+const VERIFY_POLL_MS = 2000;
+
+function verifyStatusText(verify: boolean, status?: VerifyPayment['status']): string {
+  if (!verify) return 'รอการชำระเงิน...';
+  switch (status) {
+    case 'succeeded': return 'ได้รับเงินแล้ว ✓ กำลังบันทึก...';
+    case 'expired':   return 'QR หมดอายุ';
+    case 'cancelled': return 'รายการถูกยกเลิก';
+    case 'ambiguous': return 'ตรวจสอบไม่ได้แน่ชัด — ตรวจยอดกับธนาคารแล้วสร้าง QR ใหม่';
+    case 'queued':    return 'รอคิว...';
+    default:          return 'รอการชำระเงิน (ตรวจสอบอัตโนมัติ)...';
+  }
+}
+
 export function CheckoutModal({
   shopId, branchId, cart, total, vatEnabled, shopLogoUrl, orderNumber, shopName,
   promptpayNumber, promptpayType = 'phone', promptpayName, discount, customer,
@@ -73,6 +93,13 @@ export function CheckoutModal({
   const [memberSearching, setMemberSearching] = useState(false);
   const [memberSearchError, setMemberSearchError] = useState<string | null>(null);
   const paidRef = useRef(false);
+  // ── PromptPay auto-verify (ต่อร้าน) ──
+  const [verifyReady, setVerifyReady] = useState(false);
+  const [vpay, setVpay]               = useState<VerifyPayment | null>(null);
+  const [vError, setVError]           = useState<string | null>(null);
+  const [vNonce, setVNonce]           = useState(0);
+  const autoPaidRef = useRef(false);
+  const handlePayRef = useRef<() => Promise<void>>(async () => {});
 
   const isCustomerBirthdayToday = !!customer?.birthday && isBirthdayToday(customer.birthday);
   useEffect(() => {
@@ -142,7 +169,7 @@ export function CheckoutModal({
   const fmt = (n: number) =>
     n.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
-  const availableMethods = PAYMENT_METHODS.filter(m => m.id !== 'qr' || !!promptpayNumber);
+  const availableMethods = PAYMENT_METHODS.filter(m => m.id !== 'qr' || !!promptpayNumber || verifyReady);
 
   // QR payload: generated once per (method=qr + amount + number) — nonce inside ensures uniqueness
   // useMemo prevents nonce from changing on every render
@@ -151,6 +178,9 @@ export function CheckoutModal({
     return generatePromptPayPayload(promptpayNumber, grandTotal, promptpayType);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [method, promptpayNumber, promptpayType, grandTotal]);
+
+  // เปิด auto-verify → ใช้ QR จาก verify API (ผูกกับ payment) แทน QR ที่สร้างในเครื่อง
+  const effectiveQr = verifyReady ? (vpay?.qr_payload ?? '') : qrPayload;
 
   /** ส่ง event ไปยัง customer display
    *  Fast path: existing POS WebSocket (no auth overhead, no HTTP round-trip)
@@ -179,11 +209,12 @@ export function CheckoutModal({
 
   const sendDisplay = useCallback((m: PayMethod, gt: number) => {
     const base = { order_number: orderNumber, shop_name: shopName, total: gt };
-    const body = m === 'qr' && promptpayNumber
-      ? { type: 'CHECKOUT_QR', payload: { ...base, qr_payload: qrPayload, account_name: promptpayName ?? '', promptpay_number: promptpayNumber ?? '', promptpay_type: promptpayType } }
+    if (m === 'qr' && !effectiveQr) return; // ยังไม่มี QR ที่จ่ายได้จริง (กำลังสร้าง/รอคิว)
+    const body = m === 'qr' && effectiveQr
+      ? { type: 'CHECKOUT_QR', payload: { ...base, qr_payload: effectiveQr, account_name: promptpayName ?? '', promptpay_number: promptpayNumber ?? '', promptpay_type: promptpayType } }
       : { type: 'CHECKOUT_CASH', payload: base };
     void postDisplay(body);
-  }, [orderNumber, shopName, promptpayNumber, promptpayName, promptpayType, qrPayload, postDisplay]);
+  }, [orderNumber, shopName, promptpayNumber, promptpayName, promptpayType, effectiveQr, postDisplay]);
 
   // Broadcast checkout screen to customer display on mount
   useEffect(() => {
@@ -249,6 +280,65 @@ export function CheckoutModal({
     setSubmitting(false);
   }
 
+  handlePayRef.current = handlePay;
+
+  // เช็คว่าร้านเปิด auto-verify พร้อมใช้งานหรือไม่
+  useEffect(() => {
+    let alive = true;
+    fetchWithAuth(`${API_URL}/api/v1/shops/${shopId}/promptpay-verify/status`)
+      .then(async (r) => (r.ok ? (await r.json()).data?.ready === true : false))
+      .then((ready) => { if (alive) setVerifyReady(ready); })
+      .catch(() => { /* ไม่ผูกกับ auto-verify — ใช้ flow เดิม */ });
+    return () => { alive = false; };
+  }, [shopId]);
+
+  // สร้าง payment + poll จนสถานะนิ่ง (สร้างใหม่เมื่อยอดเปลี่ยน/กดสร้างใหม่)
+  useEffect(() => {
+    if (!verifyReady || method !== 'qr' || grandTotal <= 0) return;
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const root = `${API_URL}/api/v1/shops/${shopId}/promptpay-verify/payments`;
+    setVpay(null);
+    setVError(null);
+
+    (async () => {
+      try {
+        const res = await fetchWithAuth(root, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount: Math.round(grandTotal * 100) / 100 }),
+        });
+        const json = await res.json();
+        if (!alive) return;
+        if (!res.ok) { setVError(json?.error?.message ?? 'สร้าง QR ไม่สำเร็จ'); return; }
+        let cur = json.data as VerifyPayment;
+        setVpay(cur);
+        const poll = async () => {
+          if (!alive || VERIFY_TERMINAL.has(cur.status)) return;
+          try {
+            const r = await fetchWithAuth(`${root}/${cur.id}`);
+            if (!alive) return;
+            if (r.ok) { cur = (await r.json()).data as VerifyPayment; setVpay(cur); }
+          } catch { /* network blip — poll ต่อ */ }
+          if (alive && !VERIFY_TERMINAL.has(cur.status)) timer = setTimeout(poll, VERIFY_POLL_MS);
+        };
+        timer = setTimeout(poll, VERIFY_POLL_MS);
+      } catch {
+        if (alive) setVError('เชื่อมต่อไม่ได้ กรุณาลองใหม่');
+      }
+    })();
+
+    return () => { alive = false; if (timer) clearTimeout(timer); };
+  }, [verifyReady, method, grandTotal, shopId, vNonce]);
+
+  // เงินเข้าจริง (succeeded) → บันทึกออเดอร์อัตโนมัติ (ครั้งเดียว)
+  useEffect(() => {
+    if (vpay?.status === 'succeeded' && !autoPaidRef.current) {
+      autoPaidRef.current = true;
+      void handlePayRef.current();
+    }
+  }, [vpay?.status]);
+
   // Numpad key handler
   function handleNumKey(k: string) {
     if (k === 'C')   { setReceived(''); return; }
@@ -259,7 +349,7 @@ export function CheckoutModal({
     });
   }
 
-  const canPay = method === 'qr' || receivedNum >= grandTotal;
+  const canPay = method === 'qr' ? (!verifyReady || vpay?.status === 'succeeded') : receivedNum >= grandTotal;
   const hasCustomer = !!customer;
 
   return (
@@ -471,18 +561,27 @@ export function CheckoutModal({
                 {fmt(grandTotal)}
               </div>
               <div className="cm-qr-panel__frame">
-                <QRCode
-                  value={qrPayload}
-                  size={178}
-                  bgColor="#ffffff"
-                  fgColor="#000000"
-                  level="M"
-                />
+                {effectiveQr ? (
+                  <QRCode
+                    value={effectiveQr}
+                    size={178}
+                    bgColor="#ffffff"
+                    fgColor="#000000"
+                    level="M"
+                  />
+                ) : (
+                  <div style={{ width: 178, height: 178, display: 'grid', placeItems: 'center', color: '#666', fontSize: 13, textAlign: 'center' }}>
+                    {vError ?? (vpay?.status === 'queued' ? 'รอคิว (มีรายการยอดเดียวกันอยู่ก่อน)…' : 'กำลังสร้าง QR…')}
+                  </div>
+                )}
               </div>
               <div className="cm-qr-panel__status">
                 <span className="cm-qr-panel__dot" />
-                <span>รอการชำระเงิน...</span>
+                <span>{verifyStatusText(verifyReady, vpay?.status)}</span>
               </div>
+              {verifyReady && (vError || (vpay && ['expired', 'cancelled', 'ambiguous'].includes(vpay.status))) && (
+                <button type="button" className="cm-confirm-btn" onClick={() => setVNonce((n) => n + 1)}>สร้าง QR ใหม่</button>
+              )}
               {promptpayName && (
                 <div className="cm-qr-panel__name">{promptpayName}</div>
               )}

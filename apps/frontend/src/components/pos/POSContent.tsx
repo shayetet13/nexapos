@@ -28,7 +28,7 @@ import { DiningTablesManagerModal } from '@/components/dining/DiningTablesManage
 import type { ShopMode } from '@/lib/work-area';
 
 import { API_URL, API_URL_DIRECT as API_DIRECT, WS_URL } from '@/lib/config';
-import { loadReceiptLayout, type ReceiptData } from '@/lib/receipt-layout';
+import { loadReceiptLayout, saveReceiptLayout, withLayoutDefaults, type ReceiptData } from '@/lib/receipt-layout';
 import { buildReceiptBytes } from '@/lib/receipt-render';
 const t = th.pos;
 
@@ -488,6 +488,11 @@ export function POSContent({ experience = 'retail' }: { experience?: PosExperien
       setVatEnabled(json.data?.vat_enabled === true);
       setPrinterEnabled(json.data?.print_receipt_enabled === true);
       setPrinterWidth(json.data?.printer_width === 32 ? 32 : 48);
+      // Receipt layout จาก shop config (server) — sync ข้ามทุกเครื่อง
+      // ร้านตั้งค่าไว้ → เขียนทับ cache localStorage เครื่องนี้ (server = source of truth)
+      if (json.data?.receipt_layout) {
+        saveReceiptLayout(withLayoutDefaults(json.data.receipt_layout));
+      }
       // Receipt print shop details
       setShopPhone(json.data?.phone ?? null);
       setShopAddress(json.data?.address ?? null);
@@ -604,6 +609,49 @@ export function POSContent({ experience = 'retail' }: { experience?: PosExperien
       const maxQty = stockMap[product.id]?.qty ?? Infinity;
       return [...prev, { product, quantity: Math.min(1, maxQty) }];
     });
+  }
+
+  /**
+   * เพิ่มสินค้าชุดคอมโบลงตะกร้า — บวกจำนวนตรงๆ ทีเดียว
+   * ห้ามวนเรียก addToCart(): ใน retail mode มันเป็น toggle (กดซ้ำ = ลบออก) และ cap qty ที่ 1
+   * → คอมโบที่มีสินค้า qty 2 จะถูกเพิ่มแล้วลบทิ้งทันที (ตะกร้าว่างเหมือนไม่กดอะไร)
+   */
+  function addComboToCart(comboItems: { product: Product; quantity: number }[]): boolean {
+    if (shopMode === 'full_service_restaurant' && !diningSessionId) {
+      toast.error('เลือกโต๊ะและเปิดบิลก่อน');
+      return false;
+    }
+    const unlimited = experience === 'dining';
+    // ตัดรายการที่สต็อกหมดออกก่อน (เช็คจาก stockMap เดียวกับ addToCart)
+    const addable = comboItems
+      .map(({ product, quantity }) => {
+        const maxQty = unlimited ? Infinity : (stockMap[product.id]?.qty ?? Infinity);
+        return { product, quantity: Math.min(quantity, Math.max(0, maxQty)) };
+      })
+      .filter((i) => i.quantity > 0);
+    if (addable.length === 0) {
+      toast.error('สินค้าในชุดนี้สต็อกหมดทั้งหมด');
+      return false;
+    }
+    if (addable.length < comboItems.length) {
+      toast.warning(`สินค้า ${comboItems.length - addable.length} รายการในชุดสต็อกหมด — เพิ่มเฉพาะที่เหลือ`);
+    }
+    setCart((prev) => {
+      let next = [...prev];
+      for (const { product, quantity } of addable) {
+        const maxQty = unlimited ? Infinity : (stockMap[product.id]?.qty ?? Infinity);
+        const idx = next.findIndex((i) => i.product.id === product.id);
+        if (idx >= 0) {
+          next = next.map((i, j) =>
+            j === idx ? { ...i, quantity: Math.min(i.quantity + quantity, maxQty) } : i,
+          );
+        } else {
+          next = [...next, { product, quantity }];
+        }
+      }
+      return next;
+    });
+    return true;
   }
 
   function changeQty(productId: string, delta: number) {
@@ -1275,16 +1323,25 @@ export function POSContent({ experience = 'retail' }: { experience?: PosExperien
               }}
               onApplyCombo={(items, comboPrice) => {
                 setActiveNavTab(null);
+                // จับคู่ product_id ในชุดกับสินค้าบนหน้าขาย
+                const resolved: { product: Product; quantity: number }[] = [];
                 let itemsTotal = 0;
+                let missing = 0;
                 items.forEach((it) => {
-                  const p = products.find(pr => pr.id === it.product_id);
-                  if (p) {
-                    itemsTotal += parseFloat(p.price) * it.quantity;
-                    for (let i = 0; i < it.quantity; i += 1) addToCart(p);
-                  }
+                  const p = products.find((pr) => pr.id === it.product_id);
+                  if (!p) { missing += 1; return; }
+                  itemsTotal += parseFloat(p.price) * it.quantity;
+                  resolved.push({ product: p, quantity: it.quantity });
                 });
+                if (resolved.length === 0) {
+                  toast.error('สินค้าในชุดนี้ไม่อยู่ในรายการขายของสาขา — ตรวจสอบว่าสินค้ายังเปิดขายอยู่');
+                  return;
+                }
+                if (missing > 0) toast.warning(`สินค้า ${missing} รายการในชุดไม่พบบนหน้าขาย — เพิ่มเฉพาะที่เหลือ`);
+                if (!addComboToCart(resolved)) return;
                 const comboDiscount = Math.max(0, Math.round((itemsTotal - comboPrice) * 100) / 100);
                 if (comboDiscount > 0) { setDiscountType('amount'); setDiscountInput(String(comboDiscount)); }
+                toast.success('เพิ่มชุดคอมโบลงออเดอร์แล้ว');
               }}
               onClose={() => setActiveNavTab(null)}
             />

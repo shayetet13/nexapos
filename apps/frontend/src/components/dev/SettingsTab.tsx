@@ -16,6 +16,7 @@ interface SettingsData {
   yearly_discount_percent:     string;
   plan_pro_price_monthly:      string;
   plan_pro_price_yearly:       string;
+  linejs_api_base_url:         string;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -29,6 +30,8 @@ export function SettingsTab() {
   const [discountPct,     setDiscountPct]     = useState('17');
   const [priceMonthly,    setPriceMonthly]    = useState('');
   const [priceYearly,     setPriceYearly]     = useState('');
+  const [verifyUrl,       setVerifyUrl]       = useState('');
+  const [savingVerify,    setSavingVerify]    = useState(false);
   const [loading,         setLoading]         = useState(true);
   const [savingStripe,    setSavingStripe]     = useState(false);
   const [savingRenewal,   setSavingRenewal]   = useState(false);
@@ -50,6 +53,7 @@ export function SettingsTab() {
           setDiscountPct(json.data.yearly_discount_percent        ?? '17');
           setPriceMonthly(json.data.plan_pro_price_monthly        ?? '299');
           setPriceYearly(json.data.plan_pro_price_yearly          ?? '2990');
+          setVerifyUrl(json.data.linejs_api_base_url              ?? '');
         }
       } finally {
         setLoading(false);
@@ -109,6 +113,29 @@ export function SettingsTab() {
       setToast({ type: 'err', text: 'ไม่สามารถเชื่อมต่อได้' });
     } finally {
       setSavingRenewal(false);
+    }
+  }
+
+  // ── Save PromptPay verify API URL ──
+  async function handleSaveVerify() {
+    setSavingVerify(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/api/v1/dev/settings`, {
+        method:  'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ linejs_api_base_url: verifyUrl.trim() }),
+      });
+      const json = await res.json() as { success: boolean; data?: Record<string, string>; error?: { message?: string } };
+      if (json.success) {
+        setVerifyUrl(json.data?.linejs_api_base_url ?? '');
+        setToast({ type: 'ok', text: '✅ บันทึก URL ตรวจสอบ PromptPay สำเร็จ' });
+      } else {
+        setToast({ type: 'err', text: json.error?.message ?? 'เกิดข้อผิดพลาด' });
+      }
+    } catch {
+      setToast({ type: 'err', text: 'ไม่สามารถเชื่อมต่อได้' });
+    } finally {
+      setSavingVerify(false);
     }
   }
 
@@ -283,6 +310,38 @@ export function SettingsTab() {
 
               <Btn onClick={() => void handleSaveRenewal()} disabled={savingRenewal}>
                 {savingRenewal ? 'กำลังบันทึก…' : '🔄 บันทึก Renewal Config'}
+              </Btn>
+            </>
+          )}
+        </div>
+      </Card>
+
+      {/* ── PromptPay Auto-Verify API ── */}
+      <Card>
+        <SectionHeader title="🏦 API ตรวจสอบ PromptPay (LINEJS)" />
+        <div className="p-5 space-y-4">
+          {loading ? (
+            <p className="text-sm text-[var(--color-text-muted)] animate-pulse">กำลังโหลด…</p>
+          ) : (
+            <>
+              <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
+                URL หลักของบริการตรวจสอบเงินเข้า — ใช้ร่วมทุกร้าน (ส่วน API key / Bot ของแต่ละร้านตั้งในหน้า Admin → Settings)
+                ต้องเป็น https และเป็นโดเมนที่เชื่อถือได้ เพราะ API key ของทุกร้านจะถูกส่งไปที่นี่
+              </p>
+              <div>
+                <FieldLabel>Base URL</FieldLabel>
+                <DInput
+                  placeholder="https://api.example.com (ว่างไว้ = ปิดระบบตรวจสอบอัตโนมัติ)"
+                  value={verifyUrl}
+                  onChange={(e) => setVerifyUrl(e.target.value)}
+                  className="w-full font-mono text-xs"
+                />
+                <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+                  ใส่แค่โดเมน ไม่ต้องมี /v1 ต่อท้าย — มีผลทันที ไม่ต้อง restart
+                </p>
+              </div>
+              <Btn onClick={() => void handleSaveVerify()} disabled={savingVerify}>
+                {savingVerify ? 'กำลังบันทึก…' : '🏦 บันทึก URL'}
               </Btn>
             </>
           )}

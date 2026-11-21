@@ -27,6 +27,7 @@ import { withdrawalsRoutes } from './routes/withdrawals.js';
 import { qrSessionRoutes }   from './routes/qr-session.js';
 import { auditRoutes }        from './routes/audit.js';
 import { diningRoutes }       from './routes/dining.js';
+import { promptpayVerifyRoutes } from './routes/promptpay-verify.js';
 import { addClient, removeClient, relayCast, broadcast, getLastDisplayState } from './lib/ws-broadcast.js';
 import { audit } from './lib/audit.js';
 import { startBirthdayCron } from './lib/birthday-cron.js';
@@ -227,6 +228,7 @@ await app.register(staffQrRoutes,     { prefix: '/api/v1' });
 await app.register(withdrawalsRoutes, { prefix: '/api/v1' });
 await app.register(qrSessionRoutes,   { prefix: '/api/v1' });
 await app.register(auditRoutes,       { prefix: '/api/v1' });
+await app.register(promptpayVerifyRoutes, { prefix: '/api/v1' });
 
 app.get('/api/health', (req) => ({
   ok: true,

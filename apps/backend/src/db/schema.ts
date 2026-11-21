@@ -27,6 +27,8 @@ export const shops = pgTable('shops', {
   // Printer config — managed via admin settings UI
   print_receipt_enabled: boolean('print_receipt_enabled').notNull().default(false),
   printer_width:         integer('printer_width'),  // 48 = 80mm, 32 = 58mm
+  /** Layout ใบเสร็จ ESC/POS ต่อร้าน (sync ทุกเครื่อง) — โครงสร้างตาม ReceiptLayout ฝั่ง frontend */
+  receipt_layout:        jsonb('receipt_layout'),
   owner_firstname: text('owner_firstname'),
   owner_lastname: text('owner_lastname'),
   /** 'phone' = 10-digit mobile, 'id_card' = 13-digit national ID */
@@ -558,3 +560,63 @@ export const passwordResetTokens = pgTable('password_reset_tokens', {
   expires_at: timestamp('expires_at', { withTimezone: true }).notNull(),
   created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('pwd_reset_email_idx').on(t.email)]);
+
+/**
+ * PromptPay auto-verify config ต่อร้าน (1 แถว/ร้าน)
+ * - api_key_hash UNIQUE  → API key เดียวใช้ได้แค่ร้านเดียว
+ * - bot_id UNIQUE        → LINE bot ตัวเดียวผูกได้แค่ร้านเดียว (กัน payment ข้ามร้าน)
+ * - line_mid_hash UNIQUE → บัญชี LINE เดียวล็อกอินได้แค่ร้านเดียว
+ * ค่าลับทั้งหมดเก็บแบบ AES-256-GCM (lib/crypto.ts); ไม่ส่งกลับ client เป็น plaintext
+ */
+export const shopPromptpayVerify = pgTable(
+  'shop_promptpay_verify',
+  {
+    shop_id:                  uuid('shop_id').primaryKey().references(() => shops.id, { onDelete: 'cascade' }),
+    enabled:                  boolean('enabled').notNull().default(false),
+    api_key_encrypted:        text('api_key_encrypted'),
+    api_key_hash:             text('api_key_hash'),
+    api_key_last4:            text('api_key_last4'),
+    bot_id:                   text('bot_id'),
+    source_target_id:         text('source_target_id'),
+    promptpay_id_type:        text('promptpay_id_type', { enum: ['phone', 'national_id', 'ewallet'] }),
+    promptpay_id_encrypted:   text('promptpay_id_encrypted'),
+    destination_last4:        text('destination_last4'),
+    line_auth_token_encrypted: text('line_auth_token_encrypted'),
+    line_mid_hash:            text('line_mid_hash'),
+    line_display_name:        text('line_display_name'),
+    line_logged_in_at:        timestamp('line_logged_in_at', { withTimezone: true }),
+    created_at:               timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updated_at:               timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('shop_pp_verify_api_key_hash_idx').on(t.api_key_hash),
+    uniqueIndex('shop_pp_verify_bot_id_idx').on(t.bot_id),
+    uniqueIndex('shop_pp_verify_line_mid_hash_idx').on(t.line_mid_hash),
+  ],
+);
+
+/** รายการชำระ PromptPay ที่สร้างผ่าน verify API — scoped shop_id เสมอ */
+export const promptpayPayments = pgTable(
+  'promptpay_payments',
+  {
+    id:             uuid('id').primaryKey().defaultRandom(),
+    shop_id:        uuid('shop_id').notNull().references(() => shops.id, { onDelete: 'cascade' }),
+    external_id:    text('external_id').notNull(),
+    amount_satang:  integer('amount_satang').notNull(),
+    status:         text('status', {
+      enum: ['queued', 'pending', 'succeeded', 'ambiguous', 'expired', 'cancelled'],
+    }).notNull(),
+    qr_payload:     text('qr_payload').notNull(),
+    bank:           text('bank'),
+    payer_name:     text('payer_name'),
+    transaction_at: timestamp('transaction_at', { withTimezone: true }),
+    expires_at:     timestamp('expires_at', { withTimezone: true }),
+    created_by:     uuid('created_by'),
+    created_at:     timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updated_at:     timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('promptpay_payments_shop_ext_idx').on(t.shop_id, t.external_id),
+    index('promptpay_payments_shop_created_idx').on(t.shop_id, t.created_at),
+  ],
+);

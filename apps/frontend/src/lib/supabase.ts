@@ -24,7 +24,11 @@ export function createSupabaseClient(): SupabaseClient {
 
     _client.auth.onAuthStateChange((event, session) => {
       if (event !== 'TOKEN_REFRESHED') {
-        syncThemeWithSession(session?.user?.id ?? null);
+        // INITIAL_SESSION = restore ตอนโหลด/รีเฟรชหน้า — ธีมถูกทาแล้วโดย inline script
+        // ใน <head> ห้ามทาซ้ำ (จะกระพริบ/สลับไปมา) → อัปเดตแค่ bookkeeping
+        syncThemeWithSession(session?.user?.id ?? null, {
+          applyVisual: event !== 'INITIAL_SESSION',
+        });
       }
       if (event === 'TOKEN_REFRESHED') return; // ปกติ ไม่ต้องทำอะไร
       if (event === 'SIGNED_OUT') {
