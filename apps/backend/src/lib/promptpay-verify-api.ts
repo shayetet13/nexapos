@@ -45,20 +45,6 @@ const targetSchema = z.object({
   consentConfirmedAt: z.string().nullish(),
 });
 
-const qrSessionSchema = z.object({
-  qrUrl: z.string().optional(),
-  pin:   z.string().optional(),
-  expiresInSeconds: z.number().optional(),
-});
-
-const authEventSchema = z.object({
-  type:      z.enum(['qr', 'pin', 'authenticated', 'auth-error']),
-  value:     z.string().optional(),
-  timestamp: z.number(),
-}).nullable();
-
-export type BotAuthEvent = z.infer<typeof authEventSchema>;
-
 export interface BotOption {
   id:      string;
   name:    string;
@@ -155,22 +141,12 @@ async function call<T>(
 
 const MAX_BOTS = 20;
 
-const botPath = (botId: string) => `/v1/bots/${encodeURIComponent(botId)}`;
-
 export const promptpayVerifyApi = {
   createPayment: (apiKey: string, input: CreatePaymentInput) =>
     call('/v1/promptpay/payments', apiKey, { method: 'POST', body: input }, paymentSchema),
 
   getPayment: (apiKey: string, externalId: string) =>
     call(`/v1/promptpay/payments/${encodeURIComponent(externalId)}`, apiKey, { method: 'GET' }, paymentSchema),
-
-  /** ขอ QR login ของ Bot (ต้องมี scope bots:auth บนแพลตฟอร์ม) */
-  beginBotQr: (apiKey: string, botId: string) =>
-    call(`${botPath(botId)}/auth/qr`, apiKey, { method: 'POST' }, qrSessionSchema),
-
-  /** เหตุการณ์ login ล่าสุดของ Bot (qr / pin / authenticated / auth-error) */
-  latestBotAuth: (apiKey: string, botId: string) =>
-    call(`${botPath(botId)}/auth/latest`, apiKey, { method: 'GET' }, authEventSchema),
 
   /**
    * Bot (LINEJS ที่เปิดใช้งาน) + Target (แชทที่ allowlist และยืนยัน consent แล้ว) ที่ API key นี้มองเห็น

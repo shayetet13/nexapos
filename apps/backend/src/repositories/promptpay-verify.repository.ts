@@ -1,4 +1,4 @@
-import { and, desc, eq, ne } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { shopPromptpayVerify, promptpayPayments } from '../db/schema.js';
 
@@ -22,14 +22,6 @@ export const promptpayVerifyRepository = {
       .onConflictDoUpdate({ target: shopPromptpayVerify.shop_id, set: values })
       .returning();
     return row!;
-  },
-
-  /** Bot นี้ถูกผูกกับร้านอื่นแล้วหรือไม่ (กันร้านหนึ่งสั่ง login/ควบคุม Bot ของอีกร้าน) */
-  async isBotUsedByOtherShop(shopId: string, botId: string): Promise<boolean> {
-    const rows = await db.select({ shop_id: shopPromptpayVerify.shop_id }).from(shopPromptpayVerify)
-      .where(and(eq(shopPromptpayVerify.bot_id, botId), ne(shopPromptpayVerify.shop_id, shopId)))
-      .limit(1);
-    return rows.length > 0;
   },
 
   async deleteConfig(shopId: string): Promise<void> {
