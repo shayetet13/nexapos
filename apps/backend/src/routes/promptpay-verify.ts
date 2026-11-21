@@ -38,6 +38,12 @@ const configSchema = z.object({
   destination_last4: z.string().regex(/^\d{4}$/).nullable().optional(),
 }).strict();
 
+const botLoginSchema = z.object({
+  bot_id: z.string().trim().min(1).max(100).regex(/^[\w-]+$/),
+}).strict();
+
+const ERROR_DETAIL_MAX = 200;
+
 const createPaymentSchema = z.object({
   amount: z.number().positive().max(MAX_AMOUNT_BAHT),
 }).strict();
@@ -210,6 +216,74 @@ const promptpayVerifyRoutes: FastifyPluginAsync = async (app) => {
     if (!apiKey) throw new AppError('บันทึก API key ก่อน', 409, 'RES_003');
     const bots = await promptpayVerifyApi.listBotOptions(apiKey);
     return reply.send({ success: true, data: { bots }, meta: meta(req) });
+  });
+
+  // ── LINE QR login ของ Bot (ผ่านแพลตฟอร์ม — ต้องมี scope bots:auth) ─────────────
+
+  /** key + ตรวจว่า bot เป็นของ key นี้จริง และไม่ได้ถูกร้านอื่นใช้อยู่ */
+  async function resolveBotForLogin(shopId: string, botId: string): Promise<{ apiKey: string }> {
+    const cfg = await promptpayVerifyRepository.getConfig(shopId);
+    const apiKey = cfg?.api_key_encrypted ? decrypt(cfg.api_key_encrypted) : null;
+    if (!apiKey) throw new AppError('บันทึก API key ก่อน', 409, 'RES_003');
+    if (await promptpayVerifyRepository.isBotUsedByOtherShop(shopId, botId)) {
+      throw new ForbiddenError('Bot นี้ถูกใช้กับร้านอื่นแล้ว');
+    }
+    const options = await promptpayVerifyApi.listBotOptions(apiKey);
+    if (!options.some((b) => b.id === botId)) {
+      throw new ValidationError({ bot_id: ['ไม่พบ Bot นี้ใน API key'] });
+    }
+    return { apiKey };
+  }
+
+  app.post<P & { Body: unknown }>(`${base}/bot-login`, {
+    preHandler: [app.auth],
+    config: { rateLimit: { max: 6, timeWindow: '1 minute', keyGenerator: shopRateKey } },
+  }, async (req, reply) => {
+    await requireOwnerShop(req);
+    const { shopId } = req.params;
+    const parsed = botLoginSchema.safeParse(req.body);
+    if (!parsed.success) throw new ValidationError(parsed.error.flatten().fieldErrors);
+    const { apiKey } = await resolveBotForLogin(shopId, parsed.data.bot_id);
+    const session = await promptpayVerifyApi.beginBotQr(apiKey, parsed.data.bot_id);
+    audit.action({ ...auditCtx(req, shopId), event: 'create_bot_qr_login', entity_type: 'bot', entity_id: parsed.data.bot_id });
+    return reply.send({
+      success: true,
+      data: {
+        started_at: Date.now(),
+        state: session.pin ? 'waiting_pin' : 'waiting_scan',
+        qr_url: session.qrUrl ?? null,
+        pin: session.pin ?? null,
+        expires_in_seconds: session.expiresInSeconds ?? null,
+      },
+      meta: meta(req),
+    });
+  });
+
+  // poll ผล — since = started_at จาก POST (กันอ่านเหตุการณ์เก่า)
+  app.get<P & { Querystring: { bot_id?: string; since?: string } }>(`${base}/bot-login`, {
+    preHandler: [app.auth],
+    config: { rateLimit: { max: 120, timeWindow: '1 minute', keyGenerator: shopRateKey } },
+  }, async (req, reply) => {
+    await requireOwnerShop(req);
+    const { shopId } = req.params;
+    const parsed = botLoginSchema.safeParse({ bot_id: req.query.bot_id });
+    const since = Number(req.query.since);
+    if (!parsed.success || !Number.isFinite(since)) throw new ValidationError({ query: ['bot_id และ since ไม่ถูกต้อง'] });
+    const { apiKey } = await resolveBotForLogin(shopId, parsed.data.bot_id);
+    const ev = await promptpayVerifyApi.latestBotAuth(apiKey, parsed.data.bot_id);
+
+    // เหตุการณ์ก่อนเริ่มรอบนี้ (เผื่อเวลาเครื่องต่างกันเล็กน้อย) = ของเก่า ไม่นับ
+    const fresh = ev && ev.timestamp >= since - 5_000 ? ev : null;
+    let data: { state: string; qr_url: string | null; pin: string | null; error: string | null } =
+      { state: 'waiting_scan', qr_url: null, pin: null, error: null };
+    if (fresh?.type === 'qr')            data = { ...data, state: 'waiting_scan', qr_url: fresh.value ?? null };
+    else if (fresh?.type === 'pin')      data = { ...data, state: 'waiting_pin', pin: fresh.value ?? null };
+    else if (fresh?.type === 'authenticated') data = { ...data, state: 'success' };
+    else if (fresh?.type === 'auth-error')    data = { ...data, state: 'failed', error: (fresh.value ?? 'เข้าสู่ระบบ LINE ไม่สำเร็จ').slice(0, ERROR_DETAIL_MAX) };
+    if (data.state === 'success') {
+      audit.action({ ...auditCtx(req, shopId), event: 'update_bot_qr_login_success', entity_type: 'bot', entity_id: parsed.data.bot_id });
+    }
+    return reply.send({ success: true, data, meta: meta(req) });
   });
 
   // ── Payments ───────────────────────────────────────────────────────────────

@@ -554,6 +554,14 @@ export function POSContent({ experience = 'retail' }: { experience?: PosExperien
     return () => { alive = false; };
   }, [shopId]);
   const canPayByQr = !!promptpayNumber || qrVerifyReady;
+  function openQrCheckout() {
+    if (!canPayByQr) {
+      toast.error('ร้านยังไม่ได้ตั้งค่า PromptPay — ไปที่ Admin → Settings → การชำระเงิน');
+      return;
+    }
+    setCheckoutInitialMethod('qr');
+    setCheckoutOpen(true);
+  }
 
   const reloadDiningTables = useCallback(async () => {
     if (!shopId || !branchId) return;
@@ -1522,8 +1530,8 @@ export function POSContent({ experience = 'retail' }: { experience?: PosExperien
             onCheckout={shopMode === 'full_service_restaurant' && diningSessionId
               ? () => { void sendDineRound(); }
               : () => { setCheckoutInitialMethod('cash'); setCheckoutOpen(true); }}
-            onCheckoutQr={canPayByQr && !(shopMode === 'full_service_restaurant' && diningSessionId)
-              ? () => { setCheckoutInitialMethod('qr'); setCheckoutOpen(true); }
+            onCheckoutQr={!(shopMode === 'full_service_restaurant' && diningSessionId)
+              ? () => openQrCheckout()
               : undefined}
             primaryButtonLabel={shopMode === 'full_service_restaurant' && diningSessionId ? 'ส่งรอบ (ครัว)' : undefined}
             onCloseBill={shopMode === 'full_service_restaurant' && diningSessionId
@@ -1557,8 +1565,8 @@ export function POSContent({ experience = 'retail' }: { experience?: PosExperien
               onCheckout={shopMode === 'full_service_restaurant' && diningSessionId
                 ? () => { void sendDineRound(); setDrawerOpen(false); }
                 : () => { setDrawerOpen(false); setCheckoutInitialMethod('cash'); setCheckoutOpen(true); }}
-              onCheckoutQr={canPayByQr && !(shopMode === 'full_service_restaurant' && diningSessionId)
-                ? () => { setDrawerOpen(false); setCheckoutInitialMethod('qr'); setCheckoutOpen(true); }
+              onCheckoutQr={!(shopMode === 'full_service_restaurant' && diningSessionId)
+                ? () => { setDrawerOpen(false); openQrCheckout(); }
                 : undefined}
               primaryButtonLabel={shopMode === 'full_service_restaurant' && diningSessionId ? 'ส่งรอบ (ครัว)' : undefined}
               onCloseBill={shopMode === 'full_service_restaurant' && diningSessionId

@@ -1,9 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import QRCodeLib from 'react-qr-code';
 import { toast } from 'sonner';
 import { fetchWithAuth } from '@/lib/supabase';
 import { API_URL } from '@/lib/config';
+
+const QRCode = QRCodeLib as unknown as (props: {
+  value: string; size?: number; level?: string; style?: React.CSSProperties;
+}) => React.ReactElement;
 
 type IdType = 'phone' | 'national_id' | 'ewallet';
 
@@ -21,6 +26,16 @@ interface VerifyConfig {
   promptpay_id_last4: string | null;
   destination_last4: string | null;
 }
+
+interface BotLoginState {
+  state: 'waiting_scan' | 'waiting_pin' | 'success' | 'failed';
+  qr_url: string | null;
+  pin: string | null;
+  error: string | null;
+}
+
+const POLL_MS = 2000;
+const LOGIN_TIMEOUT_MS = 4 * 60_000; // QR ของแพลตฟอร์มมีอายุ ~240 วินาที
 
 interface BotOption {
   id: string;
@@ -48,6 +63,12 @@ export function PromptPayVerifyCard({ shopId }: { shopId: string | null }) {
   const [loadingBots, setLoadingBots] = useState(false);
   const [pickedBot, setPickedBot] = useState('');
   const [pickedTarget, setPickedTarget] = useState('');
+  const [login, setLogin] = useState<BotLoginState | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+  }, []);
+  useEffect(() => stopPolling, [stopPolling]);
 
   const applyConfig = useCallback((c: VerifyConfig) => {
     setCfg(c);
@@ -117,9 +138,46 @@ export function PromptPayVerifyCard({ shopId }: { shopId: string | null }) {
     }
   }
 
+  /** สแกน QR เข้าสู่ระบบ LINE ของ Bot ที่เลือก (ผ่านแพลตฟอร์ม) */
+  async function startBotLogin() {
+    if (!pickedBot) return;
+    stopPolling();
+    const res = await fetchWithAuth(`${base}/bot-login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bot_id: pickedBot }),
+    });
+    if (!res.ok) { toast.error(await errorMessage(res, 'ขอ QR ไม่สำเร็จ')); return; }
+    const first = (await res.json()).data as { started_at: number; state: BotLoginState['state']; qr_url: string | null; pin: string | null };
+    setLogin({ state: first.state, qr_url: first.qr_url, pin: first.pin, error: null });
+    const startedAt = first.started_at;
+    const botId = pickedBot;
+    pollRef.current = setInterval(async () => {
+      if (Date.now() - startedAt > LOGIN_TIMEOUT_MS) {
+        stopPolling();
+        setLogin({ state: 'failed', qr_url: null, pin: null, error: 'QR หมดอายุ กรุณากดสแกนใหม่' });
+        return;
+      }
+      const r = await fetchWithAuth(`${base}/bot-login?bot_id=${encodeURIComponent(botId)}&since=${startedAt}`);
+      if (!r.ok) return;
+      const s = (await r.json()).data as BotLoginState;
+      // รักษา QR เดิมไว้ตอนขึ้นขั้น PIN (event pin ไม่มี url)
+      setLogin((prev) => ({ ...s, qr_url: s.qr_url ?? prev?.qr_url ?? null }));
+      if (s.state === 'success') {
+        stopPolling();
+        toast.success('เข้าสู่ระบบ LINE ของ Bot สำเร็จ');
+        void loadBots();
+      } else if (s.state === 'failed') {
+        stopPolling();
+      }
+    }, POLL_MS);
+  }
+
   async function saveTarget() {
     if (!pickedBot || !pickedTarget) return;
-    await save({ bot_id: pickedBot, source_target_id: pickedTarget });
+    // เลือกครบแล้ว = ตั้งใจใช้งาน → เปิดใช้งานให้เลย ถ้ามี API key + หมายเลขพร้อมเพย์แล้ว
+    const canEnable = cfg?.has_api_key && !!cfg.promptpay_id_last4;
+    await save({ bot_id: pickedBot, source_target_id: pickedTarget, ...(canEnable ? { enabled: true } : {}) });
   }
 
   if (!shopId || !cfg) return null;
@@ -200,12 +258,43 @@ export function PromptPayVerifyCard({ shopId }: { shopId: string | null }) {
             )}
           </div>
           {!cfg.has_api_key && <p className="page-admin__hint">บันทึก API key ก่อน แล้วจึงโหลดรายชื่อ Bot ได้</p>}
+          {currentBot && currentBot.status !== 'online' && (
+            <p className="page-admin__hint" style={{ color: 'var(--color-danger, #c0392b)' }}>
+              ⚠️ Bot นี้ยังไม่ออนไลน์ (สถานะ: {currentBot.status}) — ต้องกดเริ่ม Bot ที่แดชบอร์ดของบริการ LINEJS ก่อน ไม่งั้นจะตรวจเงินเข้าไม่ได้
+            </p>
+          )}
           {bots && currentBot && currentBot.targets.length === 0 && (
             <p className="page-admin__hint">Bot นี้ยังไม่มีแชทที่อนุญาต — เพิ่ม/อนุญาตแชท LINE OA ธนาคารที่แท็บ Targets ในแดชบอร์ดของบริการก่อน</p>
           )}
-          <p className="page-admin__hint">
-            การล็อกอินบัญชี LINE ของ Bot (สแกน QR) ทำที่แดชบอร์ดของบริการ LINEJS — ที่นี่เลือกได้เฉพาะ Bot ที่ออนไลน์อยู่แล้ว
-          </p>
+          {bots && currentBot && (
+            <div style={{ margin: '0.5rem 0' }}>
+              <button type="button" className="page-admin__btn-sm page-admin__btn-active" onClick={() => void startBotLogin()}>
+                {currentBot.status === 'online' ? 'สแกน QR เข้าสู่ระบบ LINE ใหม่' : 'สแกน QR เข้าสู่ระบบ LINE ของ Bot'}
+              </button>
+              {login && (login.state === 'waiting_scan' || login.state === 'waiting_pin') && login.qr_url && (
+                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap', marginTop: '0.75rem' }}>
+                  <div style={{ background: '#fff', padding: 12, borderRadius: 8, lineHeight: 0 }}>
+                    <QRCode value={login.qr_url} size={180} level="M" />
+                  </div>
+                  <div className="page-admin__hint">
+                    {login.state === 'waiting_pin' && login.pin ? (
+                      <>
+                        <div>กรอก PIN นี้บนมือถือเพื่อยืนยัน</div>
+                        <div style={{ fontSize: '2rem', fontWeight: 700, letterSpacing: '0.3em' }}>{login.pin}</div>
+                      </>
+                    ) : (
+                      <div>เปิด LINE บนมือถือ → สแกน QR นี้ (หมดอายุใน ~4 นาที)</div>
+                    )}
+                  </div>
+                </div>
+              )}
+              {login?.state === 'success' && <p className="page-admin__hint">🟢 เข้าสู่ระบบ LINE สำเร็จ — รอ Bot ออนไลน์สักครู่ แล้วกด "โหลดรายชื่อใหม่"</p>}
+              {login?.state === 'failed' && (
+                <p className="page-admin__hint" style={{ color: 'var(--color-danger, #c0392b)' }}>{login.error ?? 'เข้าสู่ระบบไม่สำเร็จ'}</p>
+              )}
+              <p className="page-admin__hint">ต้องใช้ API key ที่มี scope bots:auth (สร้างที่หน้า API Keys ของบริการ LINEJS)</p>
+            </div>
+          )}
           <p className="page-admin__hint">
             ⚠️ การใช้บัญชี LINE ส่วนตัวเป็นบอท (self-bot) อาจขัดต่อข้อกำหนด LINE — แนะนำใช้บัญชีแยกสำหรับร้านโดยเฉพาะ
           </p>
