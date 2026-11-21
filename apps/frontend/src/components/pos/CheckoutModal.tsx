@@ -57,6 +57,20 @@ function verifyStatusText(verify: boolean, status?: VerifyPayment['status']): st
   }
 }
 
+/**
+ * แปลง response ที่ล้มเหลวของ /promptpay-verify/payments เป็นข้อความที่บอกสาเหตุจริง
+ * (fetchWithAuth แปลง network error เป็น 503 {error:'Network error'}; proxy/gateway อาจตอบ HTML ที่ parse JSON ไม่ได้)
+ */
+function verifyErrorText(status: number, json: unknown): string {
+  const err = (json as { error?: unknown } | null)?.error;
+  const msg = typeof err === 'object' && err !== null ? (err as { message?: unknown }).message : null;
+  if (typeof msg === 'string' && msg) return msg;
+  if (status === 503 && err === 'Network error') return 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ตรวจอินเทอร์เน็ตแล้วกดสร้าง QR ใหม่';
+  if (status === 429) return 'สร้าง QR ถี่เกินไป กรุณารอสักครู่แล้วลองใหม่';
+  if (status >= 500) return `เซิร์ฟเวอร์ตอบกลับผิดพลาด (HTTP ${status}) กรุณาลองใหม่`;
+  return `สร้าง QR ไม่สำเร็จ (HTTP ${status})`;
+}
+
 export function CheckoutModal({
   shopId, branchId, cart, total, vatEnabled, shopLogoUrl, orderNumber, shopName,
   promptpayNumber, promptpayType = 'phone', promptpayName, discount, customer,
@@ -310,9 +324,10 @@ export function CheckoutModal({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ amount: Math.round(grandTotal * 100) / 100 }),
         });
-        const json = await res.json();
+        // body อาจไม่ใช่ JSON (เช่น หน้า 502/504 จาก gateway) — อย่าให้ parse พังจนเหลือแค่ "เชื่อมต่อไม่ได้"
+        const json = await res.json().catch(() => null);
         if (!alive) return;
-        if (!res.ok) { setVError(json?.error?.message ?? 'สร้าง QR ไม่สำเร็จ'); return; }
+        if (!res.ok || !json?.data) { setVError(verifyErrorText(res.status, json)); return; }
         let cur = json.data as VerifyPayment;
         setVpay(cur);
         const poll = async () => {
@@ -579,7 +594,7 @@ export function CheckoutModal({
               </div>
               <div className="cm-qr-panel__status">
                 <span className="cm-qr-panel__dot" />
-                <span>{verifyStatusText(verifyReady, vpay?.status)}</span>
+                <span>{verifyReady && vError ? 'สร้าง QR ไม่สำเร็จ' : verifyStatusText(verifyReady, vpay?.status)}</span>
               </div>
               {verifyReady && (vError || (vpay && ['expired', 'cancelled', 'ambiguous'].includes(vpay.status))) && (
                 <button type="button" className="cm-confirm-btn" onClick={() => setVNonce((n) => n + 1)}>สร้าง QR ใหม่</button>
