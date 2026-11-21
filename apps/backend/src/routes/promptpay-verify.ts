@@ -1,7 +1,7 @@
 /**
  * PromptPay auto-verify ต่อร้าน
  *  - ตั้งค่า API key / bot / target / พร้อมเพย์ (owner) — เก็บเข้ารหัส ไม่คืน plaintext
- *  - LINE QR login ผ่าน LINEJS (owner)
+ *  - เลือก Bot/Target จาก API ของแพลตฟอร์ม LINEJS (login LINE ทำที่แดชบอร์ดของแพลตฟอร์ม)
  *  - สร้าง/poll payment (cashier ขึ้นไป) — ทุก query scope ด้วย shop_id จาก path ที่ผ่าน guard แล้ว
  */
 import { createHash } from 'node:crypto';
@@ -12,7 +12,6 @@ import { AppError, ConflictError, ForbiddenError, NotFoundError, ValidationError
 import { encrypt, decrypt } from '../lib/crypto.js';
 import { meta } from '../lib/response.js';
 import { audit } from '../lib/audit.js';
-import { lineQrLogin } from '../lib/line-qr-login.js';
 import { promptpayVerifyApi, getVerifyBaseUrl, type ExternalPayment } from '../lib/promptpay-verify-api.js';
 import { promptpayVerifyRepository, type VerifyConfigRow, type PaymentRow } from '../repositories/promptpay-verify.repository.js';
 
@@ -31,6 +30,7 @@ const idByType = {
 const configSchema = z.object({
   enabled:           z.boolean().optional(),
   api_key:           z.string().regex(/^lbk_[A-Za-z0-9_-]{8,200}$/, 'API key ต้องขึ้นต้นด้วย lbk_').optional(),
+  // bot / target ต้องตรงกับที่ API key นี้มองเห็นจริง (ตรวจฝั่งเซิร์ฟเวอร์ตอนบันทึก)
   bot_id:            z.string().trim().min(1).max(100).regex(/^[\w-]+$/).optional(),
   source_target_id:  z.string().trim().min(1).max(100).regex(/^[\w-]+$/).optional(),
   promptpay_id_type: z.enum(['phone', 'national_id', 'ewallet']).optional(),
@@ -60,15 +60,12 @@ function publicConfig(c: VerifyConfigRow | null, apiBaseConfigured: boolean) {
     has_api_key:         !!c?.api_key_encrypted,
     api_key_last4:       c?.api_key_last4 ?? null,
     bot_id:              c?.bot_id ?? null,
+    bot_name:            c?.bot_name ?? null,
     source_target_id:    c?.source_target_id ?? null,
+    source_target_name:  c?.source_target_name ?? null,
     promptpay_id_type:   c?.promptpay_id_type ?? null,
     promptpay_id_last4:  c?.promptpay_id_encrypted ? last4(decrypt(c.promptpay_id_encrypted) ?? '') : null,
     destination_last4:   c?.destination_last4 ?? null,
-    line: {
-      logged_in:    !!c?.line_auth_token_encrypted,
-      display_name: c?.line_display_name ?? null,
-      logged_in_at: c?.line_logged_in_at?.toISOString() ?? null,
-    },
   };
 }
 
@@ -141,8 +138,22 @@ const promptpayVerifyRoutes: FastifyPluginAsync = async (app) => {
 
     const patch: Parameters<typeof promptpayVerifyRepository.upsertConfig>[1] = {};
     if (d.enabled           !== undefined) patch.enabled           = d.enabled;
-    if (d.bot_id            !== undefined) patch.bot_id            = d.bot_id;
-    if (d.source_target_id  !== undefined) patch.source_target_id  = d.source_target_id;
+    if (d.bot_id !== undefined || d.source_target_id !== undefined) {
+      const botId    = d.bot_id ?? current?.bot_id;
+      const targetId = d.source_target_id ?? current?.source_target_id;
+      const keyPlain = d.api_key ?? (current?.api_key_encrypted ? decrypt(current.api_key_encrypted) : null);
+      if (!keyPlain) throw new ValidationError({ bot_id: ['บันทึก API key ก่อนเลือก Bot'] });
+      if (!botId || !targetId) throw new ValidationError({ bot_id: ['เลือก Bot และแชทธนาคารพร้อมกัน'] });
+      // ยืนยันกับ API ว่า bot/target นี้อยู่ใน key จริง (กันใส่ id มั่ว/ของคนอื่น)
+      const options = await promptpayVerifyApi.listBotOptions(keyPlain);
+      const bot = options.find((b) => b.id === botId);
+      const target = bot?.targets.find((t) => t.id === targetId);
+      if (!bot || !target) throw new ValidationError({ bot_id: ['ไม่พบ Bot/แชทนี้ใน API key (ต้องเปิดใช้งานและยืนยัน consent แล้ว)'] });
+      patch.bot_id = bot.id;
+      patch.bot_name = bot.name;
+      patch.source_target_id = target.id;
+      patch.source_target_name = target.name;
+    }
     if (d.promptpay_id_type !== undefined) patch.promptpay_id_type = d.promptpay_id_type;
     if (d.destination_last4 !== undefined) patch.destination_last4 = d.destination_last4;
     if (d.api_key) {
@@ -165,7 +176,7 @@ const promptpayVerifyRoutes: FastifyPluginAsync = async (app) => {
     try {
       saved = await promptpayVerifyRepository.upsertConfig(shopId, patch);
     } catch (err) {
-      if (uniqueViolation(err)) throw new ConflictError('API key หรือ Bot ID นี้ถูกใช้กับร้านอื่นแล้ว');
+      if (uniqueViolation(err)) throw new ConflictError('API key หรือ Bot นี้ถูกใช้กับร้านอื่นแล้ว');
       throw err;
     }
 
@@ -183,72 +194,22 @@ const promptpayVerifyRoutes: FastifyPluginAsync = async (app) => {
   app.delete<P>(base, { preHandler: [app.auth] }, async (req, reply) => {
     await requireOwnerShop(req);
     const { shopId } = req.params;
-    lineQrLogin.cancel(shopId);
     await promptpayVerifyRepository.deleteConfig(shopId);
     audit.action({ ...auditCtx(req, shopId), event: 'delete_promptpay_verify_config', entity_type: 'shop_promptpay_verify', entity_id: shopId });
     return reply.send({ success: true, data: publicConfig(null, !!(await getVerifyBaseUrl())), meta: meta(req) });
   });
 
-  // ── LINE QR login ──────────────────────────────────────────────────────────
-
-  app.post<P>(`${base}/line-login`, {
+  // รายการ Bot + แชทที่เลือกได้ จาก API key ของร้าน (ต้องมี scope bots:read)
+  app.get<P>(`${base}/options`, {
     preHandler: [app.auth],
-    config: { rateLimit: { max: 5, timeWindow: '1 minute', keyGenerator: shopRateKey } },
+    config: { rateLimit: { max: 10, timeWindow: '1 minute', keyGenerator: shopRateKey } },
   }, async (req, reply) => {
     await requireOwnerShop(req);
-    lineQrLogin.start(req.params.shopId);
-    audit.action({ ...auditCtx(req, req.params.shopId), event: 'create_line_qr_login', entity_type: 'shop_promptpay_verify', entity_id: req.params.shopId });
-    return reply.send({ success: true, data: lineQrLogin.snapshot(req.params.shopId), meta: meta(req) });
-  });
-
-  // poll — เมื่อสำเร็จจะบันทึก authToken (เข้ารหัส) แล้วคืนสถานะ success
-  app.get<P>(`${base}/line-login`, {
-    preHandler: [app.auth],
-    config: { rateLimit: { max: 120, timeWindow: '1 minute', keyGenerator: shopRateKey } },
-  }, async (req, reply) => {
-    await requireOwnerShop(req);
-    const { shopId } = req.params;
-    const result = lineQrLogin.consume(shopId);
-    if (result) {
-      try {
-        await promptpayVerifyRepository.upsertConfig(shopId, {
-          line_auth_token_encrypted: encrypt(result.authToken),
-          line_mid_hash:             sha256(result.mid),
-          line_display_name:         result.displayName,
-          line_logged_in_at:         new Date(),
-        });
-      } catch (err) {
-        if (uniqueViolation(err)) {
-          return reply.send({
-            success: true,
-            data: { state: 'failed', qrUrl: null, pin: null, displayName: null,
-                    error: 'บัญชี LINE นี้ถูกใช้กับร้านอื่นแล้ว' },
-            meta: meta(req),
-          });
-        }
-        throw err;
-      }
-      audit.action({ ...auditCtx(req, shopId), event: 'update_line_login', entity_type: 'shop_promptpay_verify', entity_id: shopId });
-      return reply.send({
-        success: true,
-        data: { state: 'success', qrUrl: null, pin: null, error: null, displayName: result.displayName },
-        meta: meta(req),
-      });
-    }
-    return reply.send({ success: true, data: lineQrLogin.snapshot(shopId), meta: meta(req) });
-  });
-
-  app.delete<P>(`${base}/line-login`, { preHandler: [app.auth] }, async (req, reply) => {
-    await requireOwnerShop(req);
-    const { shopId } = req.params;
-    lineQrLogin.cancel(shopId);
-    if (await promptpayVerifyRepository.getConfig(shopId)) {
-      await promptpayVerifyRepository.upsertConfig(shopId, {
-        line_auth_token_encrypted: null, line_mid_hash: null, line_display_name: null, line_logged_in_at: null,
-      });
-    }
-    audit.action({ ...auditCtx(req, shopId), event: 'delete_line_login', entity_type: 'shop_promptpay_verify', entity_id: shopId });
-    return reply.send({ success: true, data: { ok: true }, meta: meta(req) });
+    const cfg = await promptpayVerifyRepository.getConfig(req.params.shopId);
+    const apiKey = cfg?.api_key_encrypted ? decrypt(cfg.api_key_encrypted) : null;
+    if (!apiKey) throw new AppError('บันทึก API key ก่อน', 409, 'RES_003');
+    const bots = await promptpayVerifyApi.listBotOptions(apiKey);
+    return reply.send({ success: true, data: { bots }, meta: meta(req) });
   });
 
   // ── Payments ───────────────────────────────────────────────────────────────

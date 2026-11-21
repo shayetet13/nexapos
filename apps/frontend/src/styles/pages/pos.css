@@ -3495,6 +3495,20 @@ body.pos-today-open {
   background: var(--color-primary-ghost);
 }
 
+/* ออเดอร์ที่กด Success (ทำเสร็จแล้ว) */
+.pos-today-item__done {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  background: var(--color-success);
+  color: #fff;
+}
+
 .pos-today-item__arrow {
   color: var(--color-text-subtle);
   font-size: 1.1rem;

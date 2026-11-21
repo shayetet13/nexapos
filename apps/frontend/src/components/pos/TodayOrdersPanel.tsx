@@ -94,6 +94,9 @@ export function TodayOrdersPanel({
                     <span className={`pos-today-item__status ${STATUS_STYLES[order.status] ?? ''}`}>
                       {STATUS_TH[order.status] ?? order.status}
                     </span>
+                    {order.fulfilled_at && (
+                      <span className="pos-today-item__done" title="ทำเสร็จแล้ว" aria-label="ทำเสร็จแล้ว">✓</span>
+                    )}
                     {order.receipt_token && (
                       <button
                         className="pos-today-item__receipt-btn"

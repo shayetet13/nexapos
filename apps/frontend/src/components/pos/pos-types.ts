@@ -33,6 +33,8 @@ export interface TodayOrder {
   total: string;
   payment_method: string | null;
   created_at: string;
+  /** เวลาที่กด "เสร็จแล้ว" — null/undefined = ยังไม่ทำ */
+  fulfilled_at?: string | null;
 }
 
 export interface OrderDetailItem {

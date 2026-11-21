@@ -61,7 +61,7 @@ export function CheckoutModal({
   shopId, branchId, cart, total, vatEnabled, shopLogoUrl, orderNumber, shopName,
   promptpayNumber, promptpayType = 'phone', promptpayName, discount, customer,
   birthdayBenefitType, birthdayBenefitValue = 0,
-  posWsRef,
+  posWsRef, initialMethod = 'cash',
   onSelectCustomer, onClose, onSuccess,
 }: {
   shopId: string;
@@ -80,11 +80,13 @@ export function CheckoutModal({
   birthdayBenefitType?: 'percent' | 'fixed' | null;
   birthdayBenefitValue?: number;
   posWsRef?: MutableRefObject<WebSocket | null>;
+  /** วิธีชำระที่เลือกไว้ตอนเปิด (ปุ่ม "จ่ายด้วย QR Code" ใช้ 'qr') */
+  initialMethod?: 'cash' | 'qr';
   onSelectCustomer?: (customer: CustomerInfo | null) => void;
   onClose: () => void;
   onSuccess: (orderId: string, paidTotal: number, paymentMethod: string, dailySeq: number, receiptToken?: string, extras?: { subtotal: number; totalDiscount: number; vatAmount: number; receivedAmount?: number; change?: number; earnedPoints?: number; newTotalPoints?: number; refCode?: string }) => void;
 }) {
-  const [method, setMethod]         = useState<PayMethod>('cash');
+  const [method, setMethod]         = useState<PayMethod>(initialMethod);
   const [received, setReceived]     = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]           = useState<string | null>(null);

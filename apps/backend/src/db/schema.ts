@@ -214,6 +214,8 @@ export const orders = pgTable(
     refund_otp:            varchar('refund_otp', { length: 4 }),
     refund_otp_expires_at: timestamp('refund_otp_expires_at', { withTimezone: true }),
     cash_received:         decimal('cash_received', { precision: 12, scale: 2 }),
+    /** เวลาที่กด "เสร็จแล้ว" (ทำ/ส่งมอบออเดอร์แล้ว) — NULL = ยังไม่ทำ */
+    fulfilled_at:          timestamp('fulfilled_at', { withTimezone: true }),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -565,7 +567,6 @@ export const passwordResetTokens = pgTable('password_reset_tokens', {
  * PromptPay auto-verify config ต่อร้าน (1 แถว/ร้าน)
  * - api_key_hash UNIQUE  → API key เดียวใช้ได้แค่ร้านเดียว
  * - bot_id UNIQUE        → LINE bot ตัวเดียวผูกได้แค่ร้านเดียว (กัน payment ข้ามร้าน)
- * - line_mid_hash UNIQUE → บัญชี LINE เดียวล็อกอินได้แค่ร้านเดียว
  * ค่าลับทั้งหมดเก็บแบบ AES-256-GCM (lib/crypto.ts); ไม่ส่งกลับ client เป็น plaintext
  */
 export const shopPromptpayVerify = pgTable(
@@ -577,21 +578,18 @@ export const shopPromptpayVerify = pgTable(
     api_key_hash:             text('api_key_hash'),
     api_key_last4:            text('api_key_last4'),
     bot_id:                   text('bot_id'),
+    bot_name:                 text('bot_name'),
     source_target_id:         text('source_target_id'),
+    source_target_name:       text('source_target_name'),
     promptpay_id_type:        text('promptpay_id_type', { enum: ['phone', 'national_id', 'ewallet'] }),
     promptpay_id_encrypted:   text('promptpay_id_encrypted'),
     destination_last4:        text('destination_last4'),
-    line_auth_token_encrypted: text('line_auth_token_encrypted'),
-    line_mid_hash:            text('line_mid_hash'),
-    line_display_name:        text('line_display_name'),
-    line_logged_in_at:        timestamp('line_logged_in_at', { withTimezone: true }),
     created_at:               timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updated_at:               timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     uniqueIndex('shop_pp_verify_api_key_hash_idx').on(t.api_key_hash),
     uniqueIndex('shop_pp_verify_bot_id_idx').on(t.bot_id),
-    uniqueIndex('shop_pp_verify_line_mid_hash_idx').on(t.line_mid_hash),
   ],
 );
 

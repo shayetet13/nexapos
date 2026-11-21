@@ -9,7 +9,7 @@ export function CartPanel({
   cart, total, vatEnabled, orderNumber,
   discountType, discountInput, discountAmount,
   onDiscountTypeChange, onDiscountInputChange,
-  onChangeQty, onNoteChange, onClear,   onCheckout, onClose,
+  onChangeQty, onNoteChange, onClear,   onCheckout, onCheckoutQr, onClose,
   onCustomerDisplay,   onRegisterDisplay, shopId, branchId,
   getMaxQty, primaryButtonLabel, onCloseBill,
   uiVariant = 'retail',
@@ -27,6 +27,8 @@ export function CartPanel({
   onNoteChange: (productId: string, note: string) => void;
   onClear: () => void;
   onCheckout: () => void;
+  /** กดแล้วเปิดหน้าชำระเงินในโหมด QR ทันที (ไม่ส่ง = ไม่แสดงปุ่ม) */
+  onCheckoutQr?: () => void;
   onClose?: () => void;
   onCustomerDisplay?: () => void;
   onRegisterDisplay?: () => void;
@@ -188,6 +190,18 @@ export function CartPanel({
         >
           ⚡ {primaryButtonLabel ?? t.checkout}
         </button>
+
+        {onCheckoutQr && (
+          <button
+            type="button"
+            onClick={onCheckoutQr}
+            disabled={cart.length === 0}
+            className="btn-checkout btn-checkout--secondary"
+            style={{ marginTop: '0.4rem' }}
+          >
+            📲 จ่ายด้วย QR Code
+          </button>
+        )}
 
         {onCustomerDisplay && shopId && branchId && (
           <button onClick={onCustomerDisplay} className="btn-customer-display">

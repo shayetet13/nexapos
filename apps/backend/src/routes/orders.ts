@@ -116,6 +116,7 @@ const ordersRoutes: FastifyPluginAsync = async (app) => {
         total:          first.total,
         payment_method: first.payment_method,
         created_at:     first.created_at,
+        fulfilled_at:   first.fulfilled_at,
         branch_id:      first.branch_id,
         branch_name:    first.branch_name,
         user_email:     first.staff_email,
@@ -130,6 +131,35 @@ const ordersRoutes: FastifyPluginAsync = async (app) => {
         })),
       };
       return reply.send({ success: true, data: detail, meta: meta(req) });
+    },
+  );
+
+  // POST /shops/:shopId/orders/:orderId/fulfill — cashier ขึ้นไป (viewer ห้าม): กด "เสร็จแล้ว"
+  app.post<{ Params: { shopId: string; orderId: string } }>(
+    '/shops/:shopId/orders/:orderId/fulfill', {
+      preHandler: [app.auth],
+      config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
+    }, async (req, reply) => {
+      await guardShop(req);
+      if ((req as typeof req & { shopRole?: string }).shopRole === 'viewer') {
+        throw new ForbiddenError('Viewer cannot update orders');
+      }
+      const { shopId, orderId } = req.params;
+      const order = await orderRepository.getById(orderId, shopId);
+      if (!order) throw new NotFoundError('Order');
+      if (order.status !== 'paid') {
+        throw new ValidationError({}, 'ทำเครื่องหมายเสร็จได้เฉพาะออเดอร์ที่ชำระแล้ว');
+      }
+      // idempotent: กดซ้ำ → คืนเวลาเดิม
+      const updated = await orderRepository.markFulfilled(orderId, shopId);
+      const fulfilled_at = (updated?.fulfilled_at ?? order.fulfilled_at)?.toISOString() ?? null;
+      if (updated) {
+        audit.action({
+          request_id: req.id, shop_id: shopId, user_id: req.auth?.userId ?? null, ip_address: req.ip,
+          event: 'update_order_fulfilled', entity_type: 'order', entity_id: orderId,
+        });
+      }
+      return reply.send({ success: true, data: { id: orderId, fulfilled_at }, meta: meta(req) });
     },
   );
 

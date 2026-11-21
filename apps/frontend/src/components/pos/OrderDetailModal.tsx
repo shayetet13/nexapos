@@ -1,17 +1,21 @@
 'use client';
 
+import { useState } from 'react';
 import { toast } from 'sonner';
 import { PAY_ICONS, STATUS_STYLES, STATUS_TH, type OrderDetail } from './pos-types';
 
 export function OrderDetailModal({
-  detail, loading, seqNum, shopName, onClose,
+  detail, loading, seqNum, shopName, onClose, onFulfill,
 }: {
   detail: OrderDetail | null;
   loading: boolean;
   seqNum: number | null;
   shopName: string;
   onClose: () => void;
+  /** กด "เสร็จแล้ว" — คืน Promise เพื่อให้ปุ่มแสดงสถานะกำลังบันทึก */
+  onFulfill?: (orderId: string) => Promise<void>;
 }) {
+  const [fulfilling, setFulfilling] = useState(false);
 
   const fmt = (n: number) =>
     n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -25,6 +29,12 @@ export function OrderDetailModal({
   const PAY_TH: Record<string, string> = {
     cash: 'เงินสด', card: 'บัตร', transfer: 'โอนเงิน', other: 'อื่นๆ',
   };
+
+  async function handleFulfill() {
+    if (!detail || !onFulfill || fulfilling) return;
+    setFulfilling(true);
+    try { await onFulfill(detail.id); } finally { setFulfilling(false); }
+  }
 
   function handlePrint() {
     // เปิด receipt page popup แทน window.print() ตรงๆ
@@ -94,6 +104,18 @@ export function OrderDetailModal({
                     {STATUS_TH[detail.status] ?? detail.status}
                   </span>
                 </div>
+                {detail.status === 'paid' && (
+                  <div className="pos-order-detail-meta__row">
+                    <span className="pos-order-detail-meta__label">การทำออเดอร์</span>
+                    {detail.fulfilled_at ? (
+                      <span className="pos-today-item__status pos-today-item__status--paid">
+                        ✓ เสร็จแล้ว {fmtDateTime(detail.fulfilled_at)}
+                      </span>
+                    ) : (
+                      <span className="pos-order-detail-meta__val">ยังไม่ได้ทำ</span>
+                    )}
+                  </div>
+                )}
                 {detail.user_email && (
                   <div className="pos-order-detail-meta__row">
                     <span className="pos-order-detail-meta__label">ผู้ขาย</span>
@@ -138,6 +160,17 @@ export function OrderDetailModal({
         {detail && !loading && (
           <div className="pos-order-detail-modal__foot">
             <button className="pos-order-detail-modal__cancel" onClick={onClose}>ปิด</button>
+
+            {detail.status === 'paid' && onFulfill && (
+              <button
+                className="pos-order-detail-modal__print"
+                style={detail.fulfilled_at ? { background: 'var(--color-green, #16a34a)' } : undefined}
+                onClick={() => void handleFulfill()}
+                disabled={fulfilling || !!detail.fulfilled_at}
+              >
+                {detail.fulfilled_at ? '✅ Success แล้ว' : fulfilling ? 'กำลังบันทึก…' : '✅ Success'}
+              </button>
+            )}
 
 <button className="pos-order-detail-modal__print" onClick={handlePrint}>
               🖨️ Export PDF

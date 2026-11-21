@@ -29,7 +29,28 @@ const paymentSchema = z.object({
 });
 export type ExternalPayment = z.infer<typeof paymentSchema>;
 
-const envelopeSchema = z.object({ data: paymentSchema });
+const botSchema = z.object({
+  id:      z.string().min(1),
+  name:    z.string(),
+  status:  z.string(),
+  adapter: z.string(),
+  enabled: z.boolean(),
+});
+
+const targetSchema = z.object({
+  id:                 z.string().min(1),
+  name:               z.string(),
+  type:               z.string(),
+  enabled:            z.boolean(),
+  consentConfirmedAt: z.string().nullish(),
+});
+
+export interface BotOption {
+  id:      string;
+  name:    string;
+  status:  string;
+  targets: { id: string; name: string; type: string }[];
+}
 
 export interface CreatePaymentInput {
   botId:               string;
@@ -77,7 +98,12 @@ async function baseUrl(): Promise<string> {
   return url;
 }
 
-async function call(path: string, apiKey: string, init: { method: 'GET' | 'POST'; body?: unknown }): Promise<ExternalPayment> {
+async function call<T>(
+  path: string,
+  apiKey: string,
+  init: { method: 'GET' | 'POST'; body?: unknown },
+  schema: z.ZodType<T>,
+): Promise<T> {
   let res: Response;
   try {
     res = await fetch(`${await baseUrl()}${path}`, {
@@ -95,23 +121,52 @@ async function call(path: string, apiKey: string, init: { method: 'GET' | 'POST'
     throw new AppError('เชื่อมต่อบริการตรวจสอบ PromptPay ไม่ได้', 502, 'SYS_001');
   }
 
-  if (res.status === 401 || res.status === 403) {
-    throw new AppError('API key ไม่ถูกต้องหรือไม่มีสิทธิ์ promptpay:write/read', 400, 'VAL_001');
+  const payload = await res.json().catch(() => null) as { data?: unknown; error?: { message?: string } } | null;
+  if (res.status === 401) {
+    throw new AppError('API key ไม่ถูกต้องหรือถูกเพิกถอน', 400, 'VAL_001');
+  }
+  if (res.status === 403) {
+    // แพลตฟอร์มบอก scope ที่ขาดในข้อความ เช่น "API key missing required scope: bots:read"
+    throw new AppError(payload?.error?.message ?? 'API key ไม่มีสิทธิ์ที่จำเป็น', 400, 'VAL_001');
   }
   if (!res.ok) {
     throw new AppError(`บริการตรวจสอบ PromptPay ตอบกลับผิดพลาด (${res.status})`, 502, 'SYS_001');
   }
-  const parsed = envelopeSchema.safeParse(await res.json().catch(() => null));
+  const parsed = schema.safeParse(payload?.data);
   if (!parsed.success) {
     throw new AppError('รูปแบบข้อมูลจากบริการตรวจสอบ PromptPay ไม่ถูกต้อง', 502, 'SYS_001');
   }
-  return parsed.data.data;
+  return parsed.data;
 }
+
+const MAX_BOTS = 20;
 
 export const promptpayVerifyApi = {
   createPayment: (apiKey: string, input: CreatePaymentInput) =>
-    call('/v1/promptpay/payments', apiKey, { method: 'POST', body: input }),
+    call('/v1/promptpay/payments', apiKey, { method: 'POST', body: input }, paymentSchema),
 
   getPayment: (apiKey: string, externalId: string) =>
-    call(`/v1/promptpay/payments/${encodeURIComponent(externalId)}`, apiKey, { method: 'GET' }),
+    call(`/v1/promptpay/payments/${encodeURIComponent(externalId)}`, apiKey, { method: 'GET' }, paymentSchema),
+
+  /**
+   * Bot (LINEJS ที่เปิดใช้งาน) + Target (แชทที่ allowlist และยืนยัน consent แล้ว) ที่ API key นี้มองเห็น
+   * ต้องการ scope bots:read — การ login LINE (สแกน QR) ทำที่แดชบอร์ดของบริการ ไม่ผ่าน API key
+   */
+  async listBotOptions(apiKey: string): Promise<BotOption[]> {
+    const bots = await call('/v1/bots', apiKey, { method: 'GET' }, z.array(botSchema));
+    const usable = bots.filter((b) => b.adapter === 'linejs' && b.enabled).slice(0, MAX_BOTS);
+    const options = await Promise.all(usable.map(async (bot): Promise<BotOption> => {
+      const targets = await call(`/v1/bots/${encodeURIComponent(bot.id)}/targets`, apiKey, { method: 'GET' }, z.array(targetSchema));
+      return {
+        id: bot.id,
+        name: bot.name,
+        status: bot.status,
+        targets: targets
+          .filter((t) => t.enabled && !!t.consentConfirmedAt)
+          .map(({ id, name, type }) => ({ id, name, type }))
+          .sort((a, b) => a.name.localeCompare(b.name, 'th')),
+      };
+    }));
+    return options.sort((a, b) => (a.status === 'online' ? 0 : 1) - (b.status === 'online' ? 0 : 1) || a.name.localeCompare(b.name, 'th'));
+  },
 };

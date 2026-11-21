@@ -171,6 +171,8 @@ export function POSContent({ experience = 'retail' }: { experience?: PosExperien
   const [loading, setLoading]           = useState(true);
   const [stats, setStats]               = useState<PosStats | null>(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [checkoutInitialMethod, setCheckoutInitialMethod] = useState<'cash' | 'qr'>('cash');
+  const [qrVerifyReady, setQrVerifyReady] = useState(false);
   const [drawerOpen, setDrawerOpen]     = useState(false);
   const [successOrder, setSuccessOrder] = useState<{
     orderId: string; total: number; cart: CartItem[]; orderNumber: number;
@@ -541,6 +543,18 @@ export function POSContent({ experience = 'retail' }: { experience?: PosExperien
     });
   }, [shopId]);
 
+  // ร้านเปิดตรวจสอบ PromptPay อัตโนมัติหรือไม่ — ใช้ตัดสินใจแสดงปุ่ม "จ่ายด้วย QR Code"
+  useEffect(() => {
+    if (!shopId) return;
+    let alive = true;
+    fetchWithAuth(`${API_URL}/api/v1/shops/${shopId}/promptpay-verify/status`)
+      .then(async (res) => (res.ok ? (await res.json()).data?.ready === true : false))
+      .then((ready) => { if (alive) setQrVerifyReady(ready); })
+      .catch(() => { /* ไม่มี auto-verify — ใช้เฉพาะ promptpayNumber */ });
+    return () => { alive = false; };
+  }, [shopId]);
+  const canPayByQr = !!promptpayNumber || qrVerifyReady;
+
   const reloadDiningTables = useCallback(async () => {
     if (!shopId || !branchId) return;
     const r = await fetchWithAuth(`${API_URL}/api/v1/shops/${shopId}/dining-tables?branchId=${branchId}`);
@@ -727,6 +741,18 @@ export function POSContent({ experience = 'retail' }: { experience?: PosExperien
     const res = await fetchWithAuth(`${API_URL}/api/v1/shops/${shopId}/orders/${orderId}`);
     if (res.ok) { const json = await res.json(); setOrderDetail(json.data ?? null); }
     setOrderDetailLoading(false);
+  }
+
+  async function fulfillOrder(orderId: string) {
+    if (!shopId) return;
+    const res = await fetchWithAuth(`${API_URL}/api/v1/shops/${shopId}/orders/${orderId}/fulfill`, { method: 'POST' });
+    if (res.ok) {
+      await fetchOrderDetail(orderId, orderDetailSeq ?? undefined);
+      await fetchTodayOrders();
+    } else {
+      const json = await res.json().catch(() => ({})) as { error?: { message?: string } };
+      toast.error(json?.error?.message ?? 'บันทึกไม่สำเร็จ');
+    }
   }
 
   async function voidOrder(orderId: string) {
@@ -1495,7 +1521,10 @@ export function POSContent({ experience = 'retail' }: { experience?: PosExperien
             uiVariant={experience === 'dining' ? 'dining' : 'retail'}
             onCheckout={shopMode === 'full_service_restaurant' && diningSessionId
               ? () => { void sendDineRound(); }
-              : () => { setCheckoutOpen(true); }}
+              : () => { setCheckoutInitialMethod('cash'); setCheckoutOpen(true); }}
+            onCheckoutQr={canPayByQr && !(shopMode === 'full_service_restaurant' && diningSessionId)
+              ? () => { setCheckoutInitialMethod('qr'); setCheckoutOpen(true); }
+              : undefined}
             primaryButtonLabel={shopMode === 'full_service_restaurant' && diningSessionId ? 'ส่งรอบ (ครัว)' : undefined}
             onCloseBill={shopMode === 'full_service_restaurant' && diningSessionId
               ? () => { setCloseBillOpen(true); }
@@ -1527,7 +1556,10 @@ export function POSContent({ experience = 'retail' }: { experience?: PosExperien
               uiVariant={experience === 'dining' ? 'dining' : 'retail'}
               onCheckout={shopMode === 'full_service_restaurant' && diningSessionId
                 ? () => { void sendDineRound(); setDrawerOpen(false); }
-                : () => { setDrawerOpen(false); setCheckoutOpen(true); }}
+                : () => { setDrawerOpen(false); setCheckoutInitialMethod('cash'); setCheckoutOpen(true); }}
+              onCheckoutQr={canPayByQr && !(shopMode === 'full_service_restaurant' && diningSessionId)
+                ? () => { setDrawerOpen(false); setCheckoutInitialMethod('qr'); setCheckoutOpen(true); }
+                : undefined}
               primaryButtonLabel={shopMode === 'full_service_restaurant' && diningSessionId ? 'ส่งรอบ (ครัว)' : undefined}
               onCloseBill={shopMode === 'full_service_restaurant' && diningSessionId
                 ? () => { setDrawerOpen(false); setCloseBillOpen(true); }
@@ -1544,6 +1576,7 @@ export function POSContent({ experience = 'retail' }: { experience?: PosExperien
 
       {checkoutOpen && (
         <CheckoutModal
+          initialMethod={checkoutInitialMethod}
           shopId={shopId} branchId={branchId} cart={cart} total={total}
           vatEnabled={vatEnabled} shopLogoUrl={shopLogoUrl} orderNumber={orderNumber}
           shopName={shopName} promptpayNumber={promptpayNumber} promptpayType={promptpayType} promptpayName={promptpayName}
@@ -1646,6 +1679,7 @@ export function POSContent({ experience = 'retail' }: { experience?: PosExperien
         <OrderDetailModal
           detail={orderDetail} loading={orderDetailLoading} seqNum={orderDetailSeq}
           shopName={shopName}
+          onFulfill={fulfillOrder}
           onClose={() => { setOrderDetail(null); setOrderDetailSeq(null); }}
         />
       )}

@@ -1,4 +1,4 @@
-import { eq, and, gte, lte, sql, desc, asc, SQL, ilike, type AnyColumn } from 'drizzle-orm';
+import { eq, and, gte, lte, isNull, sql, desc, asc, SQL, ilike, type AnyColumn } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { db } from '../db/index.js';
 import { orders, orderItems, products, branches, users, shops } from '../db/schema.js';
@@ -212,6 +212,7 @@ export const orderRepository = {
         total:          orders.total,
         payment_method: orders.payment_method,
         created_at:     orders.created_at,
+        fulfilled_at:   orders.fulfilled_at,
       })
       .from(orders)
       .where(
@@ -222,7 +223,8 @@ export const orderRepository = {
           sqlPosBkkSameBusinessDayAsNow(orders.created_at),
         )
       )
-      .orderBy(desc(orders.created_at));
+      // เก่า → ใหม่ (ออเดอร์เก่าสุดอยู่บนสุด)
+      .orderBy(asc(orders.created_at));
   },
 
   /** นับออเดอร์ "วันนี้" (POS) ของร้าน — ม้วน 00:15 Asia/Bangkok */
@@ -420,6 +422,21 @@ export const orderRepository = {
     };
   },
 
+  /** ทำเครื่องหมายว่าออเดอร์ (ชำระแล้ว) ถูกทำเสร็จ — ครั้งเดียว ไม่เขียนทับเวลาเดิม; คืน null ถ้าไม่เข้าเงื่อนไข */
+  async markFulfilled(orderId: string, shopId: string) {
+    const [row] = await db
+      .update(orders)
+      .set({ fulfilled_at: new Date(), updated_at: new Date() })
+      .where(and(
+        eq(orders.id, orderId),
+        eq(orders.shop_id, shopId),
+        eq(orders.status, 'paid'),
+        isNull(orders.fulfilled_at),
+      ))
+      .returning({ id: orders.id, fulfilled_at: orders.fulfilled_at });
+    return row ?? null;
+  },
+
   getWithItems(orderId: string, shopId: string) {
     return db
       .select({
@@ -431,6 +448,7 @@ export const orderRepository = {
         total:          orders.total,
         payment_method: orders.payment_method,
         created_at:     orders.created_at,
+        fulfilled_at:   orders.fulfilled_at,
         branch_id:      orders.branch_id,
         branch_name:    branches.name,
         staff_email:    users.email,

@@ -1,14 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import QRCodeLib from 'react-qr-code';
+import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { fetchWithAuth } from '@/lib/supabase';
 import { API_URL } from '@/lib/config';
-
-const QRCode = QRCodeLib as unknown as (props: {
-  value: string; size?: number; level?: string; style?: React.CSSProperties;
-}) => React.ReactElement;
 
 type IdType = 'phone' | 'national_id' | 'ewallet';
 
@@ -19,19 +14,19 @@ interface VerifyConfig {
   has_api_key: boolean;
   api_key_last4: string | null;
   bot_id: string | null;
+  bot_name: string | null;
   source_target_id: string | null;
+  source_target_name: string | null;
   promptpay_id_type: IdType | null;
   promptpay_id_last4: string | null;
   destination_last4: string | null;
-  line: { logged_in: boolean; display_name: string | null; logged_in_at: string | null };
 }
 
-interface QrLoginState {
-  state: 'idle' | 'waiting_scan' | 'waiting_pin' | 'success' | 'failed' | 'expired';
-  qrUrl: string | null;
-  pin: string | null;
-  error: string | null;
-  displayName: string | null;
+interface BotOption {
+  id: string;
+  name: string;
+  status: string;
+  targets: { id: string; name: string; type: string }[];
 }
 
 const ID_TYPES: { id: IdType; label: string; hint: string }[] = [
@@ -40,26 +35,22 @@ const ID_TYPES: { id: IdType; label: string; hint: string }[] = [
   { id: 'ewallet',     label: 'e-Wallet',  hint: '15 หลัก' },
 ];
 
-const POLL_MS = 2000;
-
 export function PromptPayVerifyCard({ shopId }: { shopId: string | null }) {
   const base = `${API_URL}/api/v1/shops/${shopId}/promptpay-verify`;
 
   const [cfg, setCfg] = useState<VerifyConfig | null>(null);
   const [apiKey, setApiKey] = useState('');
-  const [botId, setBotId] = useState('');
-  const [targetId, setTargetId] = useState('');
   const [idType, setIdType] = useState<IdType>('phone');
   const [ppId, setPpId] = useState('');
   const [last4, setLast4] = useState('');
   const [saving, setSaving] = useState(false);
-  const [login, setLogin] = useState<QrLoginState | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [bots, setBots] = useState<BotOption[] | null>(null);
+  const [loadingBots, setLoadingBots] = useState(false);
+  const [pickedBot, setPickedBot] = useState('');
+  const [pickedTarget, setPickedTarget] = useState('');
 
   const applyConfig = useCallback((c: VerifyConfig) => {
     setCfg(c);
-    setBotId(c.bot_id ?? '');
-    setTargetId(c.source_target_id ?? '');
     setIdType(c.promptpay_id_type ?? 'phone');
     setLast4(c.destination_last4 ?? '');
   }, []);
@@ -72,11 +63,6 @@ export function PromptPayVerifyCard({ shopId }: { shopId: string | null }) {
 
   useEffect(() => { void load(); }, [load]);
 
-  const stopPolling = useCallback(() => {
-    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
-  }, []);
-  useEffect(() => stopPolling, [stopPolling]);
-
   async function errorMessage(res: Response, fallback: string): Promise<string> {
     const j = await res.json().catch(() => null) as { error?: { message?: string } } | null;
     return j?.error?.message ?? fallback;
@@ -86,15 +72,12 @@ export function PromptPayVerifyCard({ shopId }: { shopId: string | null }) {
     if (!shopId) return;
     setSaving(true);
     const body: Record<string, unknown> = {
-      bot_id: botId.trim() || undefined,
-      source_target_id: targetId.trim() || undefined,
       promptpay_id_type: idType,
       destination_last4: last4 || null,
       ...extra,
     };
     if (apiKey.trim()) body.api_key = apiKey.trim();
     if (ppId.trim()) body.promptpay_id = ppId.trim();
-    Object.keys(body).forEach((k) => body[k] === undefined && delete body[k]);
 
     const res = await fetchWithAuth(base, {
       method: 'PUT',
@@ -102,48 +85,46 @@ export function PromptPayVerifyCard({ shopId }: { shopId: string | null }) {
       body: JSON.stringify(body),
     });
     setSaving(false);
-    if (!res.ok) { toast.error(await errorMessage(res, 'บันทึกไม่สำเร็จ')); return; }
+    if (!res.ok) { toast.error(await errorMessage(res, 'บันทึกไม่สำเร็จ')); return false; }
     applyConfig((await res.json()).data as VerifyConfig);
     setApiKey('');
     setPpId('');
     toast.success('บันทึกการตั้งค่าแล้ว');
+    return true;
   }
 
   async function remove() {
     if (!shopId || !window.confirm('ลบการตั้งค่าตรวจสอบ PromptPay อัตโนมัติของร้านนี้?')) return;
     const res = await fetchWithAuth(base, { method: 'DELETE' });
     if (!res.ok) { toast.error(await errorMessage(res, 'ลบไม่สำเร็จ')); return; }
-    stopPolling();
-    setLogin(null);
+    setBots(null);
     applyConfig((await res.json()).data as VerifyConfig);
   }
 
-  async function startLogin() {
-    stopPolling();
-    const res = await fetchWithAuth(`${base}/line-login`, { method: 'POST' });
-    if (!res.ok) { toast.error(await errorMessage(res, 'เริ่มสแกนไม่สำเร็จ')); return; }
-    setLogin((await res.json()).data as QrLoginState);
-    pollRef.current = setInterval(async () => {
-      const r = await fetchWithAuth(`${base}/line-login`);
-      if (!r.ok) return;
-      const s = (await r.json()).data as QrLoginState;
-      setLogin(s);
-      if (s.state === 'success') { stopPolling(); toast.success('เข้าสู่ระบบ LINE สำเร็จ'); void load(); }
-      if (s.state === 'failed' || s.state === 'expired') stopPolling();
-    }, POLL_MS);
+  async function loadBots() {
+    setLoadingBots(true);
+    try {
+      const res = await fetchWithAuth(`${base}/options`);
+      if (!res.ok) { toast.error(await errorMessage(res, 'ดึงรายชื่อ Bot ไม่สำเร็จ')); return; }
+      const list = (await res.json()).data.bots as BotOption[];
+      setBots(list);
+      const cur = list.find((b) => b.id === cfg?.bot_id) ?? list[0];
+      setPickedBot(cur?.id ?? '');
+      setPickedTarget(cur?.targets.find((t) => t.id === cfg?.source_target_id)?.id ?? '');
+      if (list.length === 0) toast.info('ไม่พบ Bot LINEJS ที่เปิดใช้งาน — ตรวจ API key และสิทธิ์ bots:read');
+    } finally {
+      setLoadingBots(false);
+    }
   }
 
-  async function lineLogout() {
-    stopPolling();
-    const res = await fetchWithAuth(`${base}/line-login`, { method: 'DELETE' });
-    if (!res.ok) { toast.error(await errorMessage(res, 'ออกจากระบบ LINE ไม่สำเร็จ')); return; }
-    setLogin(null);
-    void load();
+  async function saveTarget() {
+    if (!pickedBot || !pickedTarget) return;
+    await save({ bot_id: pickedBot, source_target_id: pickedTarget });
   }
 
   if (!shopId || !cfg) return null;
 
-  const showQr = login && (login.state === 'waiting_scan' || login.state === 'waiting_pin') && login.qrUrl;
+  const currentBot = bots?.find((b) => b.id === pickedBot) ?? null;
   const idTypeMeta = ID_TYPES.find((t) => t.id === idType)!;
 
   return (
@@ -160,9 +141,10 @@ export function PromptPayVerifyCard({ shopId }: { shopId: string | null }) {
       )}
 
       <div className="page-admin__form">
+        {/* 1) API key */}
         <div>
           <label className="page-admin__label">
-            API key (lbk_…) {cfg.has_api_key && <span className="page-admin__hint">— บันทึกแล้ว ลงท้าย …{cfg.api_key_last4}</span>}
+            1. API key (lbk_…) {cfg.has_api_key && <span className="page-admin__hint">— บันทึกแล้ว ลงท้าย …{cfg.api_key_last4}</span>}
           </label>
           <input
             type="password"
@@ -172,23 +154,66 @@ export function PromptPayVerifyCard({ shopId }: { shopId: string | null }) {
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
           />
-          <p className="page-admin__hint">ต้องมี scope promptpay:write และ promptpay:read</p>
+          <p className="page-admin__hint">ต้องมี scope bots:read, promptpay:read และ promptpay:write</p>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-          <div>
-            <label className="page-admin__label">Bot ID</label>
-            <input className="input-field" placeholder="bot_xxx" value={botId} onChange={(e) => setBotId(e.target.value)} />
+        {/* 2) เลือก Bot + แชทธนาคาร (login LINE ทำที่แดชบอร์ดของบริการ LINEJS) */}
+        <div>
+          <label className="page-admin__label">
+            2. Bot และแชท LINE OA ธนาคาร
+            {cfg.bot_name && (
+              <span className="page-admin__hint"> — เลือกไว้: <strong>{cfg.bot_name}</strong> → <strong>{cfg.source_target_name ?? '-'}</strong></span>
+            )}
+          </label>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <button type="button" className="page-admin__btn-sm" disabled={loadingBots || !cfg.has_api_key} onClick={() => void loadBots()}>
+              {loadingBots ? 'กำลังโหลด…' : bots ? 'โหลดรายชื่อใหม่' : 'โหลดรายชื่อ Bot'}
+            </button>
+            {bots && bots.length > 0 && (
+              <>
+                <select
+                  className="input-field"
+                  style={{ flex: '1 1 160px', minWidth: 0 }}
+                  value={pickedBot}
+                  onChange={(e) => { setPickedBot(e.target.value); setPickedTarget(''); }}
+                >
+                  {bots.map((b) => <option key={b.id} value={b.id}>{b.name}{b.status === 'online' ? '' : ` (${b.status})`}</option>)}
+                </select>
+                <select
+                  className="input-field"
+                  style={{ flex: '1 1 200px', minWidth: 0 }}
+                  value={pickedTarget}
+                  onChange={(e) => setPickedTarget(e.target.value)}
+                >
+                  <option value="">— เลือกแชทธนาคาร —</option>
+                  {currentBot?.targets.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+                <button
+                  type="button"
+                  className="page-admin__btn-sm page-admin__btn-active"
+                  disabled={!pickedBot || !pickedTarget || saving}
+                  onClick={() => void saveTarget()}
+                >
+                  ใช้ตัวนี้
+                </button>
+              </>
+            )}
           </div>
-          <div>
-            <label className="page-admin__label">Target ID (แชท LINE OA ธนาคาร)</label>
-            <input className="input-field" placeholder="target_xxx" value={targetId} onChange={(e) => setTargetId(e.target.value)} />
-          </div>
+          {!cfg.has_api_key && <p className="page-admin__hint">บันทึก API key ก่อน แล้วจึงโหลดรายชื่อ Bot ได้</p>}
+          {bots && currentBot && currentBot.targets.length === 0 && (
+            <p className="page-admin__hint">Bot นี้ยังไม่มีแชทที่อนุญาต — เพิ่ม/อนุญาตแชท LINE OA ธนาคารที่แท็บ Targets ในแดชบอร์ดของบริการก่อน</p>
+          )}
+          <p className="page-admin__hint">
+            การล็อกอินบัญชี LINE ของ Bot (สแกน QR) ทำที่แดชบอร์ดของบริการ LINEJS — ที่นี่เลือกได้เฉพาะ Bot ที่ออนไลน์อยู่แล้ว
+          </p>
+          <p className="page-admin__hint">
+            ⚠️ การใช้บัญชี LINE ส่วนตัวเป็นบอท (self-bot) อาจขัดต่อข้อกำหนด LINE — แนะนำใช้บัญชีแยกสำหรับร้านโดยเฉพาะ
+          </p>
         </div>
 
         <div>
           <label className="page-admin__label">
-            หมายเลขพร้อมเพย์ที่รับเงิน {cfg.promptpay_id_last4 && <span className="page-admin__hint">— บันทึกแล้ว ลงท้าย …{cfg.promptpay_id_last4}</span>}
+            3. หมายเลขพร้อมเพย์ที่รับเงิน {cfg.promptpay_id_last4 && <span className="page-admin__hint">— บันทึกแล้ว ลงท้าย …{cfg.promptpay_id_last4}</span>}
           </label>
           <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
             {ID_TYPES.map((t) => (
@@ -236,59 +261,12 @@ export function PromptPayVerifyCard({ shopId }: { shopId: string | null }) {
           >
             {cfg.enabled ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
           </button>
-          {(cfg.has_api_key || cfg.bot_id) && (
+          {cfg.has_api_key && (
             <button type="button" className="page-admin__btn-sm page-admin__btn-danger" onClick={() => void remove()}>ลบการตั้งค่า</button>
           )}
           <span className="page-admin__hint" style={{ alignSelf: 'center' }}>
             สถานะ: {cfg.ready ? '🟢 พร้อมใช้งาน' : cfg.enabled ? '🟡 ตั้งค่าไม่ครบ' : '⚪ ปิดอยู่'}
           </span>
-        </div>
-
-        <hr style={{ border: 0, borderTop: '1px solid var(--color-border, #e5e5e5)', width: '100%' }} />
-
-        <div>
-          <label className="page-admin__label">บัญชี LINE ที่ใช้ตรวจสอบ</label>
-          {cfg.line.logged_in ? (
-            <p className="page-admin__hint">
-              🟢 เข้าสู่ระบบแล้ว: <strong>{cfg.line.display_name ?? '-'}</strong>
-              {cfg.line.logged_in_at && ` (${new Date(cfg.line.logged_in_at).toLocaleString('th-TH')})`}
-            </p>
-          ) : (
-            <p className="page-admin__hint">ยังไม่ได้เข้าสู่ระบบ LINE</p>
-          )}
-
-          <div style={{ display: 'flex', gap: '0.5rem', margin: '0.5rem 0' }}>
-            <button type="button" className="page-admin__btn-sm page-admin__btn-active" onClick={() => void startLogin()}>
-              {cfg.line.logged_in ? 'สแกนเข้าสู่ระบบใหม่' : 'สแกน QR เข้าสู่ระบบ LINE'}
-            </button>
-            {cfg.line.logged_in && (
-              <button type="button" className="page-admin__btn-sm page-admin__btn-danger" onClick={() => void lineLogout()}>ออกจากระบบ LINE</button>
-            )}
-          </div>
-
-          {showQr && (
-            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-              <div style={{ background: '#fff', padding: 12, borderRadius: 8, lineHeight: 0 }}>
-                <QRCode value={login.qrUrl!} size={180} level="M" />
-              </div>
-              <div className="page-admin__hint">
-                {login.state === 'waiting_pin' && login.pin ? (
-                  <>
-                    <div>กรอก PIN นี้บนมือถือเพื่อยืนยัน</div>
-                    <div style={{ fontSize: '2rem', fontWeight: 700, letterSpacing: '0.3em' }}>{login.pin}</div>
-                  </>
-                ) : (
-                  <div>เปิด LINE บนมือถือ → สแกน QR นี้ (QR หมดอายุใน 3 นาที)</div>
-                )}
-              </div>
-            </div>
-          )}
-          {login && (login.state === 'failed' || login.state === 'expired') && (
-            <p className="page-admin__hint" style={{ color: 'var(--color-danger, #c0392b)' }}>{login.error ?? 'เข้าสู่ระบบไม่สำเร็จ'}</p>
-          )}
-          <p className="page-admin__hint">
-            ⚠️ การใช้บัญชี LINE ส่วนตัวเป็นบอท (self-bot) อาจขัดต่อข้อกำหนด LINE — แนะนำใช้บัญชีแยกสำหรับร้านโดยเฉพาะ
-          </p>
         </div>
       </div>
     </div>
