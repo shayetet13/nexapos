@@ -7,6 +7,14 @@ import { eq } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { appSettings } from '../db/schema.js';
 import { AppError } from './errors.js';
+import { logger } from './audit.js';
+
+/**
+ * HTTP status ที่ใช้ตอบเมื่อบริการ LINEJS (upstream) ล้มเหลว
+ * ห้ามใช้ 502/504: Cloudflare (api.nexapos.io) แทนที่ response 502/504 จาก origin ด้วยหน้า HTML ของตัวเอง
+ * ทำให้ frontend parse JSON ไม่ได้และไม่เห็นสาเหตุจริง — 424 (Failed Dependency) ผ่านไปทั้ง body
+ */
+export const UPSTREAM_ERROR_STATUS = 424;
 
 /** key ใน app_settings — ตั้งค่าที่ Dev Dashboard → Settings (ใช้ร่วมทั้งแพลตฟอร์ม) */
 export const VERIFY_BASE_URL_KEY = 'linejs_api_base_url';
@@ -118,7 +126,9 @@ async function call<T>(
     });
   } catch (err) {
     if (err instanceof AppError) throw err;
-    throw new AppError('เชื่อมต่อบริการตรวจสอบ PromptPay ไม่ได้', 502, 'SYS_001');
+    // ไม่ log URL เต็ม/คีย์ — เอาแค่ path + สาเหตุ (timeout / DNS / TLS / redirect)
+    logger.error({ err: String(err), path, method: init.method }, '[promptpay-verify] upstream unreachable');
+    throw new AppError('เชื่อมต่อบริการตรวจสอบ PromptPay ไม่ได้ (ตรวจ LINEJS API URL ที่ Dev Dashboard → Settings)', UPSTREAM_ERROR_STATUS, 'SYS_001');
   }
 
   const payload = await res.json().catch(() => null) as { data?: unknown; error?: { message?: string } } | null;
@@ -130,11 +140,19 @@ async function call<T>(
     throw new AppError(payload?.error?.message ?? 'API key ไม่มีสิทธิ์ที่จำเป็น', 400, 'VAL_001');
   }
   if (!res.ok) {
-    throw new AppError(`บริการตรวจสอบ PromptPay ตอบกลับผิดพลาด (${res.status})`, 502, 'SYS_001');
+    // ข้อความจาก upstream (เช่น "bot is offline") ช่วยให้รู้สาเหตุจริง — จำกัดความยาว ไม่ส่งคีย์
+    const upstreamMsg = typeof payload?.error?.message === 'string' ? payload.error.message.slice(0, 160) : '';
+    logger.error({ path, method: init.method, status: res.status, upstreamMsg }, '[promptpay-verify] upstream returned error');
+    throw new AppError(
+      `บริการตรวจสอบ PromptPay ตอบกลับผิดพลาด (${res.status})${upstreamMsg ? `: ${upstreamMsg}` : ''}`,
+      UPSTREAM_ERROR_STATUS, 'SYS_001',
+    );
   }
   const parsed = schema.safeParse(payload?.data);
   if (!parsed.success) {
-    throw new AppError('รูปแบบข้อมูลจากบริการตรวจสอบ PromptPay ไม่ถูกต้อง', 502, 'SYS_001');
+    logger.error({ path, method: init.method, issues: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`) },
+      '[promptpay-verify] upstream response shape mismatch');
+    throw new AppError('รูปแบบข้อมูลจากบริการตรวจสอบ PromptPay ไม่ถูกต้อง', UPSTREAM_ERROR_STATUS, 'SYS_001');
   }
   return parsed.data;
 }

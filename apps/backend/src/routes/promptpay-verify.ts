@@ -12,7 +12,7 @@ import { AppError, ConflictError, ForbiddenError, NotFoundError, ValidationError
 import { encrypt, decrypt } from '../lib/crypto.js';
 import { meta } from '../lib/response.js';
 import { audit } from '../lib/audit.js';
-import { promptpayVerifyApi, getVerifyBaseUrl, type ExternalPayment } from '../lib/promptpay-verify-api.js';
+import { promptpayVerifyApi, getVerifyBaseUrl, UPSTREAM_ERROR_STATUS, type ExternalPayment } from '../lib/promptpay-verify-api.js';
 import { promptpayVerifyRepository, type VerifyConfigRow, type PaymentRow } from '../repositories/promptpay-verify.repository.js';
 
 const sha256 = (v: string) => createHash('sha256').update(v).digest('hex');
@@ -244,7 +244,7 @@ const promptpayVerifyRoutes: FastifyPluginAsync = async (app) => {
       ...(cfg.destination_last4 ? { destinationLast4: cfg.destination_last4 } : {}),
     });
     if (ext.amountSatang !== satang) {
-      throw new AppError('ยอดเงินจากบริการตรวจสอบไม่ตรงกับที่ร้องขอ', 502, 'SYS_001');
+      throw new AppError('ยอดเงินจากบริการตรวจสอบไม่ตรงกับที่ร้องขอ', UPSTREAM_ERROR_STATUS, 'SYS_001');
     }
 
     const row = await promptpayVerifyRepository.insertPayment({
