@@ -34,15 +34,13 @@ const ordersRoutes: FastifyPluginAsync = async (app) => {
   }, async (req, reply) => {
     const { shopId } = req.params;
 
-    // สองอย่างนี้ไม่ขึ้นต่อกัน — รันพร้อมกันเพื่อลด round trip ไป DB (upsert ทำไว้เผื่อ FK orders.user_id เท่านั้น)
-    const [shops] = await Promise.all([
-      shopRepository.getShopsForUser(req.auth!.userId),
-      // Ensure current user exists in public.users (FK for orders.user_id)
-      userRepository.upsertUser(req.auth!.userId, req.auth!.email),
-    ]);
+    const shops = await shopRepository.getShopsForUser(req.auth!.userId);
     if (!shops.some((s) => s.id === shopId)) {
       throw new ForbiddenError('No access to this shop');
     }
+
+    // Ensure current user exists in public.users (FK for orders.user_id) — หลังตรวจสิทธิ์ร้านเท่านั้น (ไม่เขียน DB ก่อน authorize)
+    await userRepository.upsertUser(req.auth!.userId, req.auth!.email);
 
     const result = await createOrder(shopId, req.auth!.userId, req.body);
 
