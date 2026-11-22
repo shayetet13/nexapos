@@ -1,0 +1,27 @@
+{
+	"name": "@linebot/bot-worker",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts",
+		"./process-entry": "./src/process-entry.ts"
+	},
+	"scripts": {
+		"start": "node src/process-entry.ts",
+		"test": "node --test test/*.test.ts",
+		"test:run": "node --test test/*.test.ts",
+		"typecheck": "tsc --noEmit"
+	},
+	"engines": {
+		"node": ">=22.6"
+	},
+	"devDependencies": {
+		"@types/node": "^24.0.0",
+		"typescript": "^5.9.0"
+	},
+	"dependencies": {
+		"@evex/linejs": "npm:@jsr/evex__linejs@3.2.1",
+		"undici": "^7"
+	}
+}

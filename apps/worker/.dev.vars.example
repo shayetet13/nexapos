@@ -1,0 +1,27 @@
+# ── Cloudflare Worker — Local Dev Secrets ────────────────────────────────────
+# คัดลอกไฟล์นี้เป็น .dev.vars (ไม่ commit — อยู่ใน .gitignore)
+# ใช้สำหรับ `wrangler dev` เท่านั้น
+
+# Shared secret กับ Fastify backend
+# ต้องตรงกับ INTERNAL_TOKEN ใน apps/backend/.env
+INTERNAL_TOKEN=your_64_hex_internal_token_here
+
+# Fastify backend URL (local dev)
+ORIGIN_URL=http://localhost:4000
+
+# Frontend URL (local dev — CORS whitelist)
+FRONTEND_URL=http://localhost:3000
+
+# Optional app secrets (can also be stored on Worker in production)
+# Keep placeholders only. Do not commit real values.
+DATABASE_URL=postgresql://user:password@host:6543/postgres
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+ENCRYPTION_KEY=your_64_hex_encryption_key
+RESEND_API_KEY=re_xxx
+TELEGRAM_BOT_TOKEN=0000000000:telegram_bot_token
+DEV_ADMIN_EMAILS=admin@example.com
+SMTP_USER=support@example.com
+SMTP_PASS=your_smtp_password
+SMTP_FROM=NexaPos <support@example.com>

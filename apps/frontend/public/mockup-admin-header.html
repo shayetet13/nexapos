@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mockup — Admin Header + Tabs</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:           #0c0806;
+    --bg-card:      rgba(255,255,255,0.04);
+    --bg-hover:     rgba(255,255,255,0.06);
+    --border:       rgba(255,255,255,0.08);
+    --border-light: rgba(255,255,255,0.12);
+    --text:         #f5f0ea;
+    --text-muted:   rgba(245,240,234,0.5);
+    --text-subtle:  rgba(245,240,234,0.35);
+    --primary:      #e8643c;
+    --primary-ghost:rgba(232,100,60,0.12);
+    --primary-hover:#f07550;
+    --error:        #ef4444;
+    --font: 'Segoe UI', system-ui, sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 14px;
+    min-height: 100vh;
+  }
+
+  /* ─── STICKY WRAPPER ─── */
+  .admin-sticky-head {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg-card);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.35);
+  }
+
+  /* ─── ROW 1: auth-header ─── */
+  .auth-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+  }
+  .auth-header__left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .auth-header__title {
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--primary);
+    letter-spacing: -0.02em;
+  }
+  .auth-header__nav {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .nav-link {
+    padding: 5px 11px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: all 0.15s;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    font-family: var(--font);
+  }
+  .nav-link:hover { background: var(--bg-hover); color: var(--text); }
+
+  .auth-header__right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* ─── Bell ─── */
+  .bell-btn {
+    position: relative;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 18px;
+    padding: 5px 8px;
+    border-radius: 8px;
+    transition: background 0.15s;
+    line-height: 1;
+  }
+  .bell-btn:hover { background: var(--bg-hover); }
+  .bell-badge {
+    position: absolute;
+    top: -2px; right: -2px;
+    background: var(--error);
+    color: #fff;
+    font-size: 9px;
+    font-weight: 700;
+    min-width: 15px; height: 15px;
+    border-radius: 999px;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0 3px;
+  }
+
+  /* ─── Theme switcher (topnav variant) ─── */
+  .theme-btn {
+    width: 34px; height: 34px;
+    padding: 0;
+    border-radius: 50%;
+    background: var(--bg-hover);
+    border: 1px solid var(--border-light);
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px;
+    transition: all 0.15s;
+  }
+  .theme-btn:hover {
+    background: rgba(255,255,255,0.09);
+    border-color: rgba(255,255,255,0.2);
+    color: var(--text);
+  }
+
+  /* ─── Logout ─── */
+  .logout-btn {
+    padding: 5px 11px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--error);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s;
+    font-family: var(--font);
+  }
+  .logout-btn:hover { background: rgba(239,68,68,0.1); }
+
+  /* ─── ROW 2: Tab bar ─── */
+  .admin-tab-bar {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0 16px 10px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .admin-tab-bar::-webkit-scrollbar { display: none; }
+
+  .tab {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 7px 14px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s;
+    font-family: var(--font);
+    text-decoration: none;
+  }
+  .tab:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+  }
+  .tab--active {
+    background: var(--primary-ghost);
+    color: var(--primary);
+    font-weight: 700;
+  }
+
+  /* ─── CONTENT (scrolls under sticky head) ─── */
+  .admin-content {
+    padding: 24px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* Shop select row */
+  .shop-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .shop-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-subtle);
+  }
+  .shop-select {
+    padding: 8px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 500;
+    outline: none;
+    font-family: var(--font);
+  }
+
+  /* Shop code block */
+  .code-block {
+    padding: 16px 20px;
+    border-radius: 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .code-num {
+    font-size: 28px;
+    font-weight: 900;
+    letter-spacing: 0.05em;
+    color: var(--primary);
+    font-variant-numeric: tabular-nums;
+  }
+  .code-copy {
+    padding: 6px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-hover);
+    color: var(--text-muted);
+    font-size: 12px;
+    cursor: pointer;
+    font-family: var(--font);
+  }
+
+  /* Fake product cards */
+  .product-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  .product-card {
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .product-img {
+    width: 44px; height: 44px;
+    border-radius: 8px;
+    background: var(--bg-hover);
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  .product-img img { width: 100%; height: 100%; object-fit: cover; }
+  .product-name { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
+  .product-meta { font-size: 12px; color: var(--text-muted); }
+  .tag-row { display: flex; gap: 5px; margin-top: 8px; }
+  .tag {
+    padding: 2px 8px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    background: var(--bg-hover);
+    color: var(--text-muted);
+  }
+  .tag--danger { background: rgba(239,68,68,0.12); color: var(--error); }
+
+  /* ─── LABEL ─── */
+  .label-new {
+    display: inline-block;
+    background: var(--primary);
+    color: #fff;
+    font-size: 9px;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 4px;
+    letter-spacing: 0.06em;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+
+  /* scrollable body for demo */
+  .page-wrap { height: 100vh; overflow-y: auto; }
+
+  /* annotation overlay */
+  .anno {
+    position: fixed;
+    pointer-events: none;
+    font-size: 11px;
+    font-weight: 700;
+    background: rgba(232,100,60,0.9);
+    color: #fff;
+    padding: 3px 8px;
+    border-radius: 6px;
+    white-space: nowrap;
+    z-index: 9999;
+  }
+  .anno-line {
+    position: fixed;
+    pointer-events: none;
+    border-left: 2px dashed rgba(232,100,60,0.7);
+    z-index: 9998;
+  }
+</style>
+</head>
+<body>
+<div class="page-wrap">
+
+  <!-- ── STICKY HEAD ── -->
+  <div class="admin-sticky-head">
+
+    <!-- Row 1: auth-header -->
+    <div class="auth-header">
+      <div class="auth-header__left">
+        <span class="auth-header__title">จัดการร้าน</span>
+        <nav class="auth-header__nav">
+          <a class="nav-link">แดชบอร์ด</a>
+          <a class="nav-link">Subscription</a>
+        </nav>
+      </div>
+      <div class="auth-header__right">
+        <!-- Bell -->
+        <button class="bell-btn" title="แจ้งเตือน">
+          🔔
+          <span class="bell-badge">2</span>
+        </button>
+        <!-- Theme switcher ← ใหม่ อยู่ข้างๆ bell -->
+        <button class="theme-btn" title="เปลี่ยนธีม">🎨</button>
+        <button class="logout-btn">ออกจากระบบ</button>
+      </div>
+    </div>
+
+    <!-- Row 2: Tab bar (sticky) -->
+    <div class="admin-tab-bar">
+      <button class="tab tab--active">📦 สินค้า</button>
+      <a class="tab">📊 สต๊อก</a>
+      <button class="tab">📋 ออเดอร์</button>
+      <button class="tab">🎫 สมาชิก</button>
+      <button class="tab">👥 ผู้ใช้</button>
+      <button class="tab">🔑 QR พนักงาน</button>
+      <button class="tab">⚙️ ตั้งค่าร้าน</button>
+      <button class="tab">🔍 Audit Log</button>
+    </div>
+  </div>
+
+  <!-- ── CONTENT (scrolls under sticky) ── -->
+  <div class="admin-content">
+
+    <div class="shop-row">
+      <span class="shop-label">ร้าน</span>
+      <select class="shop-select">
+        <option>capy (เจ้าของ)</option>
+      </select>
+    </div>
+
+    <div class="code-block">
+      <div>
+        <div style="font-size:11px;color:var(--text-subtle);margin-bottom:4px;">📍 ทวีวัฒนา, กรุงเทพมหานคร · รหัสร้าน</div>
+        <span class="code-num">10170–001–69</span>
+      </div>
+      <button class="code-copy">📋 คัดลอก</button>
+    </div>
+
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <h2 style="font-size:16px;font-weight:800;color:var(--text);">สินค้า</h2>
+        <button style="padding:8px 16px;border-radius:10px;background:var(--primary);color:#fff;border:none;font-weight:700;font-size:13px;cursor:pointer;font-family:var(--font);">+ เพิ่มสินค้า</button>
+      </div>
+      <div class="product-grid">
+        <div class="product-card">
+          <div class="product-img"><img src="https://placehold.co/44x44/2a1810/e8643c?text=🥩" alt="" /></div>
+          <div>
+            <div class="product-name">เนื้อ capy ท่าง</div>
+            <div class="product-meta">112233 · ฿150.00 · ชิ้น</div>
+            <div class="tag-row"><span class="tag">สต๊อก</span><span class="tag">แก้ไข</span><span class="tag tag--danger">ลบ</span></div>
+          </div>
+        </div>
+        <div class="product-card">
+          <div class="product-img"><img src="https://placehold.co/44x44/1a1010/e8643c?text=🥩" alt="" /></div>
+          <div>
+            <div class="product-name">เนื้อ v3</div>
+            <div class="product-meta">998877 · ฿200.00 · ชิ้น</div>
+            <div class="tag-row"><span class="tag">สต๊อก</span><span class="tag">แก้ไข</span><span class="tag tag--danger">ลบ</span></div>
+          </div>
+        </div>
+        <div class="product-card">
+          <div class="product-img"><img src="https://placehold.co/44x44/151015/e8643c?text=🍖" alt="" /></div>
+          <div>
+            <div class="product-name">เนื้อหอด</div>
+            <div class="product-meta">123 · ฿0.01 · ชิ้น</div>
+            <div class="tag-row"><span class="tag">สต๊อก</span><span class="tag">แก้ไข</span><span class="tag tag--danger">ลบ</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Extra content to demo sticky scroll -->
+    <div style="height:600px;display:flex;align-items:center;justify-content:center;color:var(--text-subtle);font-size:13px;">
+      ↑ เลื่อน scroll ขึ้น — header + tabs จะค้างอยู่ด้านบน
+    </div>
+
+  </div>
+</div>
+
+<!-- ── Annotations ── -->
+<div class="anno" style="top:14px;right:170px;">① ธีม อยู่ข้างๆ 🔔 bell</div>
+<div class="anno" style="top:55px;left:50%;transform:translateX(-50%);">② Tabs ขึ้นอยู่ใน header — sticky ค้างตลอด</div>
+</body>
+</html>

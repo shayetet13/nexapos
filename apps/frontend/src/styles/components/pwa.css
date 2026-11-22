@@ -1,0 +1,43 @@
+/* ═══════════════════════════════════════════════════════
+   PWA Install Banner — Ocean Dark Glass
+   ═══════════════════════════════════════════════════════ */
+
+.pwa-banner {
+  @apply fixed bottom-0 left-0 right-0 z-50 flex flex-wrap items-center justify-between gap-3 border-t p-4;
+  border-color: var(--color-border);
+  background: var(--color-bg-overlay, rgba(0,0,0,0.88));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+  animation: pwa-slide-up var(--duration-slow) var(--ease-spring);
+}
+
+.pwa-banner__text {
+  @apply text-sm font-medium;
+  color: var(--color-text);
+}
+
+.pwa-banner__actions {
+  @apply flex gap-2;
+}
+
+.pwa-banner__btn {
+  @apply rounded-lg px-3 py-1.5 text-sm font-medium;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.pwa-banner__btn--primary {
+  background: var(--color-primary);
+  color: var(--color-bg);
+  box-shadow: var(--shadow-primary-sm);
+}
+.pwa-banner__btn--primary:hover {
+  box-shadow: var(--shadow-primary-md);
+}
+
+.pwa-banner__btn--secondary {
+  color: var(--color-text-muted);
+}
+.pwa-banner__btn--secondary:hover {
+  color: var(--color-text);
+}

@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NexaPos — Dialog Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #0c0806;
+    --bg-card:   #1a1310;
+    --bg-hover:  #231a16;
+    --border:    rgba(255,255,255,0.08);
+    --border-lg: rgba(255,255,255,0.13);
+    --text:      #f5f0ec;
+    --text-muted:#b5a89a;
+    --text-sub:  #7a6e66;
+    --primary:   #e8622a;
+    --primary-dim:rgba(232,98,42,0.18);
+    --success:   #00e5a0;
+    --success-bg:rgba(0,229,160,0.10);
+    --error:     #ff5c5c;
+    --error-bg:  rgba(255,92,92,0.10);
+    --warning:   #f59e0b;
+    --warning-bg:rgba(245,158,11,0.12);
+    --info:      #60a5fa;
+    --info-bg:   rgba(96,165,250,0.12);
+    --radius:    12px;
+    --shadow:    0 8px 32px rgba(0,0,0,0.5);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Sora', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 40px 32px;
+    background-image: radial-gradient(ellipse 80% 60% at 50% -20%, rgba(232,98,42,0.07) 0%, transparent 70%);
+  }
+
+  h1 { font-size: 13px; font-weight: 600; color: var(--text-sub); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 32px; }
+  h2 { font-size: 11px; font-weight: 600; color: var(--text-sub); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 16px; }
+
+  .section { margin-bottom: 48px; }
+
+  /* ── TOAST ── */
+  .toast-stack { display: flex; flex-direction: column; gap: 10px; max-width: 360px; }
+
+  .toast {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: var(--radius);
+    background: var(--bg-card);
+    border: 1px solid var(--border-lg);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(16px);
+    animation: slideIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    position: relative;
+    overflow: hidden;
+  }
+  .toast::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    border-radius: 99px 0 0 99px;
+  }
+
+  .toast--success::before { background: var(--success); }
+  .toast--error::before   { background: var(--error); }
+  .toast--warning::before { background: var(--warning); }
+  .toast--info::before    { background: var(--info); }
+
+  .toast__icon {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; flex-shrink: 0; margin-left: 4px;
+  }
+  .toast--success .toast__icon { background: var(--success-bg); color: var(--success); }
+  .toast--error   .toast__icon { background: var(--error-bg);   color: var(--error);   }
+  .toast--warning .toast__icon { background: var(--warning-bg); color: var(--warning); }
+  .toast--info    .toast__icon { background: var(--info-bg);    color: var(--info);    }
+
+  .toast__body { flex: 1; }
+  .toast__title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+  .toast__desc  { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+
+  .toast__close {
+    width: 20px; height: 20px;
+    border-radius: 6px;
+    border: none; background: transparent;
+    color: var(--text-sub); cursor: pointer; font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; margin-top: 2px;
+    transition: background 0.15s, color 0.15s;
+  }
+  .toast__close:hover { background: var(--bg-hover); color: var(--text); }
+
+  .toast__progress {
+    position: absolute;
+    bottom: 0; left: 0; height: 2px;
+    border-radius: 0 0 var(--radius) var(--radius);
+    animation: progress 3s linear both;
+  }
+  .toast--success .toast__progress { background: var(--success); }
+  .toast--error   .toast__progress { background: var(--error); }
+  .toast--warning .toast__progress { background: var(--warning); }
+  .toast--info    .toast__progress { background: var(--info); }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(24px) scale(0.97); }
+    to   { opacity: 1; transform: translateX(0) scale(1); }
+  }
+  @keyframes progress {
+    from { width: 100%; } to { width: 0%; }
+  }
+
+  /* ── CONFIRM MODAL ── */
+  .modal-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .modal {
+    background: var(--bg-card);
+    border: 1px solid var(--border-lg);
+    border-radius: 18px;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.7);
+    padding: 28px 28px 24px;
+    width: 100%; max-width: 380px;
+    animation: modalIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    position: relative;
+    overflow: hidden;
+  }
+  .modal::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
+  }
+
+  @keyframes modalIn {
+    from { opacity: 0; transform: scale(0.93) translateY(10px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+  }
+
+  .modal__icon-wrap {
+    width: 52px; height: 52px;
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; margin-bottom: 18px;
+  }
+  .modal__icon-wrap--danger  { background: var(--error-bg);   }
+  .modal__icon-wrap--warning { background: var(--warning-bg); }
+
+  .modal__title {
+    font-size: 16px; font-weight: 700;
+    color: var(--text); margin-bottom: 8px;
+  }
+  .modal__desc {
+    font-size: 13px; line-height: 1.65;
+    color: var(--text-muted); margin-bottom: 24px;
+  }
+  .modal__desc strong { color: var(--text); font-weight: 600; }
+
+  .modal__actions { display: flex; gap: 10px; }
+
+  .btn {
+    flex: 1; padding: 11px 16px;
+    border-radius: 10px; border: none;
+    font-family: 'Sora', sans-serif;
+    font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: all 0.18s;
+  }
+  .btn--cancel {
+    background: var(--bg-hover);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+  }
+  .btn--cancel:hover { background: #2e2420; color: var(--text); }
+
+  .btn--danger {
+    background: var(--error);
+    color: #fff;
+  }
+  .btn--danger:hover { background: #ff3a3a; box-shadow: 0 4px 16px rgba(255,92,92,0.35); }
+
+  .btn--primary {
+    background: var(--primary);
+    color: #fff;
+  }
+  .btn--primary:hover { background: #f0723a; box-shadow: 0 4px 16px rgba(232,98,42,0.35); }
+
+  .divider { height: 1px; background: var(--border); margin: 32px 0; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  @media (max-width: 640px) { .two-col { grid-template-columns: 1fr; } }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 10px; border-radius: 99px;
+    font-size: 11px; font-weight: 600;
+    background: var(--primary-dim); color: var(--primary);
+    margin-bottom: 8px;
+  }
+</style>
+</head>
+<body>
+
+<h1>NexaPos — Notification & Dialog Preview</h1>
+
+<div class="section">
+  <h2>🍞 Toast Notifications — ด้านขวาบน</h2>
+  <div class="toast-stack">
+
+    <div class="toast toast--success" style="animation-delay:0s">
+      <div class="toast__icon">✓</div>
+      <div class="toast__body">
+        <div class="toast__title">ลบสินค้าเรียบร้อยแล้ว</div>
+        <div class="toast__desc">เนื้อ capy ย่าง ถูกลบออกจากระบบแล้ว</div>
+      </div>
+      <button class="toast__close">✕</button>
+      <div class="toast__progress"></div>
+    </div>
+
+    <div class="toast toast--error" style="animation-delay:0.08s">
+      <div class="toast__icon">✕</div>
+      <div class="toast__body">
+        <div class="toast__title">ยกเลิกออเดอร์ไม่สำเร็จ</div>
+        <div class="toast__desc">ออเดอร์นี้ถูกชำระแล้ว ไม่สามารถยกเลิกได้</div>
+      </div>
+      <button class="toast__close">✕</button>
+      <div class="toast__progress"></div>
+    </div>
+
+    <div class="toast toast--warning" style="animation-delay:0.16s">
+      <div class="toast__icon">⚠</div>
+      <div class="toast__body">
+        <div class="toast__title">สต๊อกใกล้หมด</div>
+        <div class="toast__desc">เนื้อ v3 เหลือ 2 ชิ้น</div>
+      </div>
+      <button class="toast__close">✕</button>
+      <div class="toast__progress"></div>
+    </div>
+
+    <div class="toast toast--info" style="animation-delay:0.24s">
+      <div class="toast__icon">ℹ</div>
+      <div class="toast__body">
+        <div class="toast__title">QR Code ถูกสร้างแล้ว</div>
+        <div class="toast__desc">สแกนเพื่อเบิกสต๊อกได้ทันที</div>
+      </div>
+      <button class="toast__close">✕</button>
+      <div class="toast__progress"></div>
+    </div>
+
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<div class="section">
+  <h2>🗑 Confirm Modal — กลางจอ (แทน confirm())</h2>
+  <div class="two-col">
+
+    <!-- Delete confirm -->
+    <div>
+      <div class="pill">⚠ Destructive Action</div>
+      <div class="modal-wrap" style="padding: 0; margin-top: 8px;">
+        <div class="modal">
+          <div class="modal__icon-wrap modal__icon-wrap--danger">🗑</div>
+          <div class="modal__title">ลบสินค้า</div>
+          <div class="modal__desc">
+            คุณแน่ใจหรือไม่ว่าต้องการลบ <strong>"เนื้อ capy ย่าง"</strong>?<br>
+            การลบนี้ไม่สามารถย้อนกลับได้
+          </div>
+          <div class="modal__actions">
+            <button class="btn btn--cancel">ยกเลิก</button>
+            <button class="btn btn--danger">ลบเลย</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Remove member confirm -->
+    <div>
+      <div class="pill">👤 Member Action</div>
+      <div class="modal-wrap" style="padding: 0; margin-top: 8px;">
+        <div class="modal">
+          <div class="modal__icon-wrap modal__icon-wrap--warning">👤</div>
+          <div class="modal__title">ลบสมาชิกออกจากร้าน</div>
+          <div class="modal__desc">
+            <strong>okex7724@gmail.com</strong> จะถูกลบออกจากร้านนี้<br>
+            ข้อมูลการขายที่ผ่านมาจะยังคงอยู่
+          </div>
+          <div class="modal__actions">
+            <button class="btn btn--cancel">ยกเลิก</button>
+            <button class="btn btn--danger">ลบออก</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

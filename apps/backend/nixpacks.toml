@@ -1,0 +1,23 @@
+# Railway / Nixpacks — Backend (Fastify)
+# Root Directory in Railway dashboard: apps/backend
+# ../../ resolves to the monorepo root (/app) where pnpm-workspace.yaml lives
+
+[phases.setup]
+nixPkgs = ["nodejs_22"]
+
+[phases.install]
+cmds = [
+  "npm install -g pnpm@9.15.0",
+  "pnpm --dir ../.. install --frozen-lockfile",
+]
+
+[phases.build]
+# @nexapos/shared ต้อง build ก่อน (dist ถูก gitignore) — order schema (promptpay_payment_id) และกติกาแลกแต้มอยู่ในแพ็กเกจนี้
+# ถ้าใช้ dist เก่า zod จะตัด field ที่ไม่รู้จักทิ้ง แล้วออเดอร์โอน/QR ของร้านที่เปิดตรวจเงินจะถูกปฏิเสธทั้งหมด
+cmds = [
+  "pnpm --dir ../.. --filter @nexapos/shared build",
+  "pnpm --dir ../.. --filter @nexapos/backend build",
+]
+
+[start]
+cmd = "node dist/index.js"

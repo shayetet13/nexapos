@@ -1,0 +1,30 @@
+{
+	"name": "@linebot/api",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "tsx watch src/index.ts",
+		"start": "tsx src/index.ts",
+		"build": "tsc -p tsconfig.json --noEmit",
+		"typecheck": "tsc -p tsconfig.json --noEmit",
+		"test": "vitest",
+		"test:run": "vitest run"
+	},
+	"dependencies": {
+		"@linebot/bot-worker": "workspace:*",
+		"@linebot/contracts": "workspace:*",
+		"@linebot/rule-engine": "workspace:*",
+		"@linebot/supervisor": "workspace:*",
+		"@hono/node-server": "^1.19.1",
+		"hono": "^4.9.4",
+		"jose": "^6.1.0",
+		"zod": "^4.1.5"
+	},
+	"devDependencies": {
+		"@types/node": "^24.3.0",
+		"tsx": "^4.20.5",
+		"typescript": "^5.9.2",
+		"vitest": "^3.2.4"
+	}
+}

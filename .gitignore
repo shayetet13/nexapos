@@ -1,0 +1,43 @@
+node_modules
+.env
+.env.local
+.env.*.local
+apps/backend/.env
+apps/backend/.env.*
+apps/backend/drizzle
+apps/frontend/.env
+apps/frontend/.env.local
+apps/frontend/.env.*.local
+apps/worker/.dev.vars
+
+# LINEJS platform runtime state — SQLite DB + encrypted LINE session keys decrypt to
+# live LINE tokens; never commit
+services/linebot-platform/**/data/
+services/linebot-platform/**/.env.local
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+*.enc
+
+# Legacy standalone copies, superseded by services/linebot-platform. Each is its own git repo (embedded)
+# and holds live secrets (.env.local, session files) — keep them out of this repo
+/line payment verify/
+/linebot-control-platform-master/
+
+dist
+.claude
+.next
+.turbo
+*.log
+.DS_Store
+coverage
+*.tsbuildinfo
+architecture.html
+CLAUDE.md
+customer-display-design.html
+deploy.bat
+DEPLOY.md
+DEPLOY-PRODUCTION.md
+payment-modal-design.html
+start.bat
+docs*

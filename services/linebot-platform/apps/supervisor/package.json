@@ -1,0 +1,24 @@
+{
+	"name": "@linebot/supervisor",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"test": "node --test test/*.test.ts",
+		"test:run": "node --test test/*.test.ts",
+		"typecheck": "tsc --noEmit"
+	},
+	"engines": {
+		"node": ">=22.6"
+	},
+	"dependencies": {
+		"@linebot/bot-worker": "file:../bot-worker"
+	},
+	"devDependencies": {
+		"@types/node": "^24.0.0",
+		"typescript": "^5.9.0"
+	}
+}
