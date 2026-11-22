@@ -146,12 +146,12 @@ export function PromptPayPaymentsPanel({ shopId }: { shopId: string | null }) {
 
       <div className="ppv-range">
         <label className="ppv-range__field">
-          <span className="page-admin__hint">ตั้งแต่</span>
+          <span className="ppv-muted">ตั้งแต่</span>
           <input type="date" className="input-field" value={from} max={to}
             onChange={(e) => isPlausibleDate(e.target.value) && changeRange({ from: e.target.value })} />
         </label>
         <label className="ppv-range__field">
-          <span className="page-admin__hint">ถึง</span>
+          <span className="ppv-muted">ถึง</span>
           <input type="date" className="input-field" value={to} min={from}
             onChange={(e) => isPlausibleDate(e.target.value) && changeRange({ to: e.target.value })} />
         </label>
@@ -160,7 +160,7 @@ export function PromptPayPaymentsPanel({ shopId }: { shopId: string | null }) {
         </button>
       </div>
 
-      {error && <p className="page-admin__hint ppv-error">{error}</p>}
+      {error && <p className="ppv-error">{error}</p>}
 
       {stats && stats.banks.length > 0 && (
         <div className="ppv-banks">
@@ -173,7 +173,7 @@ export function PromptPayPaymentsPanel({ shopId }: { shopId: string | null }) {
       )}
 
       {rows.length === 0 && !loading ? (
-        <p className="page-admin__hint">ไม่มีรายการในช่วงที่เลือก</p>
+        <p className="ppv-muted">ไม่มีรายการในช่วงที่เลือก</p>
       ) : (
         <div className="page-admin__orders-table-wrap">
           <table className="page-admin__orders-table">
@@ -208,7 +208,7 @@ export function PromptPayPaymentsPanel({ shopId }: { shopId: string | null }) {
         <div className="ppv-pager">
           <button type="button" className="page-admin__btn-sm" disabled={page === 0 || loading}
             onClick={() => setPage((p) => Math.max(0, p - 1))}>ก่อนหน้า</button>
-          <span className="page-admin__hint">หน้า {page + 1} / {pageCount} ({total} รายการ)</span>
+          <span className="ppv-muted">หน้า {page + 1} / {pageCount} ({total} รายการ)</span>
           <button type="button" className="page-admin__btn-sm" disabled={page + 1 >= pageCount || loading}
             onClick={() => setPage((p) => p + 1)}>ถัดไป</button>
         </div>

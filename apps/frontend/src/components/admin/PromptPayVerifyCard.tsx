@@ -1,13 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import { toast } from 'sonner';
 import { fetchWithAuth } from '@/lib/supabase';
 import { API_URL } from '@/lib/config';
 
-type IdType = 'phone' | 'national_id' | 'ewallet';
+export type IdType = 'phone' | 'national_id' | 'ewallet';
 
-interface VerifyConfig {
+export interface VerifyConfig {
   api_base_configured: boolean;
   api_key_configured: boolean;
   enabled: boolean;
@@ -26,6 +26,182 @@ const ID_TYPES: { id: IdType; label: string; hint: string }[] = [
   { id: 'national_id', label: 'บัตร ปชช.', hint: '13 หลัก' },
   { id: 'ewallet',     label: 'e-Wallet',  hint: '15 หลัก' },
 ];
+
+type Tone = 'ok' | 'warn' | 'off';
+
+function statusOf(cfg: VerifyConfig): { tone: Tone; label: string } {
+  if (cfg.ready) return { tone: 'ok', label: 'พร้อมใช้งาน' };
+  if (cfg.enabled) return { tone: 'warn', label: 'ตั้งค่าไม่ครบ / บริการยังไม่พร้อม' };
+  return { tone: 'off', label: 'ปิดอยู่' };
+}
+
+interface FormProps {
+  cfg: VerifyConfig;
+  idType: IdType;
+  ppId: string;
+  last4: string;
+  saving: boolean;
+  onIdType: (t: IdType) => void;
+  onPpId: (v: string) => void;
+  onLast4: (v: string) => void;
+  onSave: () => void;
+  onToggle: () => void;
+  onClear: () => void;
+}
+
+/** ฟอร์มตั้งค่า (ส่วนแสดงผลล้วน — ไม่เรียก API) เพื่อให้ดู/ทดสอบหน้าตาแต่ละสถานะได้ง่าย */
+export function PromptPayVerifyForm({
+  cfg, idType, ppId, last4, saving, onIdType, onPpId, onLast4, onSave, onToggle, onClear,
+}: FormProps) {
+  const uid = useId();
+  const status = statusOf(cfg);
+  const hasBot = !!cfg.bot_id && !!cfg.source_target_id;
+  const hasNumber = !!cfg.promptpay_id_last4;
+  const platformOk = cfg.api_base_configured && cfg.api_key_configured;
+  const typeMeta = ID_TYPES.find((t) => t.id === idType) ?? ID_TYPES[0]!;
+  const canToggle = !saving && (cfg.enabled || hasBot);
+
+  return (
+    <section className="page-admin__card ppv-card" aria-labelledby={`${uid}-title`}>
+      <header className="ppv-card__head">
+        <div className="ppv-card__intro">
+          <h3 id={`${uid}-title`} className="ppv-card__title">ตรวจสอบ PromptPay อัตโนมัติ</h3>
+          <p className="ppv-card__sub">
+            ยืนยันว่าเงินเข้าจริงจากแจ้งเตือน LINE OA ของธนาคาร — ไม่ต้องกดยืนยันเองทุกครั้งที่ลูกค้าสแกนจ่าย
+          </p>
+        </div>
+        <span className={`ppv-badge ppv-badge--${status.tone}`} role="status">
+          <span className="ppv-badge__dot" aria-hidden="true" />
+          {status.label}
+        </span>
+      </header>
+
+      {!platformOk && (
+        <div className="ppv-alert ppv-alert--warn" role="alert">
+          <strong>บริการตรวจสอบยังไม่พร้อม</strong>
+          <span>
+            ผู้ดูแลระบบต้องตั้งค่า {!cfg.api_base_configured ? 'URL ของบริการ' : 'API key ของระบบ'} ที่เซิร์ฟเวอร์ก่อน จึงจะเปิดใช้งานได้
+          </span>
+        </div>
+      )}
+
+      <ol className="ppv-steps">
+        {/* 1) Bot + แชทธนาคาร — dev ผูกให้ (อ่านอย่างเดียว) */}
+        <li className={`ppv-step${hasBot ? ' ppv-step--done' : ''}`}>
+          <span className="ppv-step__num" aria-hidden="true">{hasBot ? '✓' : '1'}</span>
+          <div className="ppv-step__body">
+            <h4 className="ppv-step__title">Bot และแชทธนาคาร</h4>
+            {hasBot ? (
+              <>
+                <div className="ppv-bind">
+                  <span className="ppv-chip"><span aria-hidden="true">🤖</span> {cfg.bot_name ?? cfg.bot_id}</span>
+                  <span className="ppv-bind__arrow" aria-hidden="true">→</span>
+                  <span className="ppv-chip"><span aria-hidden="true">💬</span> {cfg.source_target_name ?? cfg.source_target_id}</span>
+                </div>
+                <p className="ppv-note">ผู้ดูแลระบบเป็นผู้ผูกให้ (1 Bot ต่อ 1 ร้าน) — แก้ไขเองไม่ได้</p>
+              </>
+            ) : (
+              <p className="ppv-note ppv-note--warn">
+                ยังไม่ได้ผูก Bot ให้ร้านนี้ — ติดต่อผู้ดูแลระบบเพื่อผูก LINE Bot และแชทธนาคารที่รับแจ้งเงินเข้า
+              </p>
+            )}
+          </div>
+        </li>
+
+        {/* 2) พร้อมเพย์ที่รับเงิน */}
+        <li className={`ppv-step${hasNumber ? ' ppv-step--done' : ''}`}>
+          <span className="ppv-step__num" aria-hidden="true">{hasNumber ? '✓' : '2'}</span>
+          <div className="ppv-step__body">
+            <h4 className="ppv-step__title">บัญชีพร้อมเพย์ที่รับเงิน</h4>
+
+            <div className="ppv-seg" role="radiogroup" aria-label="ประเภทพร้อมเพย์">
+              {ID_TYPES.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={idType === t.id}
+                  className={`ppv-seg__btn${idType === t.id ? ' ppv-seg__btn--on' : ''}`}
+                  onClick={() => onIdType(t.id)}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="ppv-field">
+              <label htmlFor={`${uid}-pp`} className="ppv-field__label">
+                หมายเลข{typeMeta.label}
+                {hasNumber && <span className="ppv-saved">บันทึกแล้ว ลงท้าย …{cfg.promptpay_id_last4}</span>}
+              </label>
+              <input
+                id={`${uid}-pp`}
+                className="input-field ppv-input"
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder={hasNumber ? 'เว้นว่างไว้ถ้าไม่เปลี่ยน' : typeMeta.hint}
+                value={ppId}
+                onChange={(e) => onPpId(e.target.value.replace(/\D/g, '').slice(0, 15))}
+              />
+              <p className="ppv-help">{hasNumber ? 'กรอกใหม่เฉพาะเมื่อต้องการเปลี่ยนหมายเลข — ' : ''}เก็บเข้ารหัส AES-256 และไม่แสดงเต็มหลังบันทึก</p>
+            </div>
+
+            <div className="ppv-field ppv-field--short">
+              <label htmlFor={`${uid}-l4`} className="ppv-field__label">
+                เลขบัญชีปลายทาง 4 หลักท้าย <span className="ppv-optional">(ไม่บังคับ)</span>
+              </label>
+              <input
+                id={`${uid}-l4`}
+                className="input-field ppv-input"
+                inputMode="numeric"
+                maxLength={4}
+                placeholder="1234"
+                value={last4}
+                onChange={(e) => onLast4(e.target.value.replace(/\D/g, '').slice(0, 4))}
+              />
+              <p className="ppv-help">ใช้ตรวจว่าเงินเข้าบัญชีของร้านจริง ช่วยกันสับสนเมื่อมียอดเท่ากันหลายบัญชี</p>
+            </div>
+          </div>
+        </li>
+      </ol>
+
+      <footer className="ppv-actions">
+        <div className="ppv-switch">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={cfg.enabled}
+            aria-labelledby={`${uid}-sw`}
+            disabled={!canToggle}
+            onClick={onToggle}
+            className={`page-admin__toggle${cfg.enabled ? ' page-admin__toggle--on' : ''}`}
+          >
+            <span className="page-admin__toggle-thumb" />
+          </button>
+          <div>
+            <span id={`${uid}-sw`} className="ppv-switch__label">เปิดใช้งานตรวจสอบอัตโนมัติ</span>
+            {!hasBot && !cfg.enabled && <span className="ppv-switch__hint">รอผู้ดูแลระบบผูก Bot ก่อน</span>}
+          </div>
+        </div>
+
+        <div className="ppv-actions__buttons">
+          {(hasNumber || cfg.enabled) && (
+            <button type="button" className="ppv-btn ppv-btn--danger" disabled={saving} onClick={onClear}>
+              ล้างการตั้งค่า
+            </button>
+          )}
+          <button type="button" className="ppv-btn ppv-btn--primary" disabled={saving} onClick={onSave}>
+            {saving ? 'กำลังบันทึก…' : 'บันทึก'}
+          </button>
+        </div>
+      </footer>
+
+      <p className="ppv-footnote">
+        ⚠️ การใช้บัญชี LINE ส่วนตัวเป็นบอท (self-bot) อาจขัดต่อข้อกำหนดของ LINE — แนะนำใช้บัญชีแยกสำหรับร้านโดยเฉพาะ
+      </p>
+    </section>
+  );
+}
 
 /**
  * ตั้งค่าตรวจสอบ PromptPay อัตโนมัติของร้าน (owner)
@@ -57,8 +233,8 @@ export function PromptPayVerifyCard({ shopId }: { shopId: string | null }) {
 
   async function errorMessage(res: Response, fallback: string): Promise<string> {
     const j = await res.json().catch(() => null) as
-      { error?: { message?: string; details?: { fieldErrors?: Record<string, string[]> } | Record<string, string[]> } } | null;
-    const details = j?.error?.details as Record<string, string[] | undefined> | undefined;
+      { error?: { message?: string; details?: Record<string, string[] | undefined> } } | null;
+    const details = j?.error?.details;
     const firstDetail = details ? Object.values(details).flat().find((v): v is string => typeof v === 'string') : undefined;
     return firstDetail ?? j?.error?.message ?? fallback;
   }
@@ -96,99 +272,19 @@ export function PromptPayVerifyCard({ shopId }: { shopId: string | null }) {
 
   if (!shopId || !cfg) return null;
 
-  const idTypeMeta = ID_TYPES.find((t) => t.id === idType)!;
-  const hasBot = !!cfg.bot_id && !!cfg.source_target_id;
-  const platformOk = cfg.api_base_configured && cfg.api_key_configured;
-
   return (
-    <div className="page-admin__card">
-      <h3 className="page-admin__card-title">ตรวจสอบ PromptPay อัตโนมัติ (LINE Bot)</h3>
-      <p className="page-admin__section-desc">
-        ยืนยันยอดเงินเข้าจริงผ่าน LINE OA ธนาคาร — Bot ผูกกับร้านโดยผู้ดูแลระบบ (1 Bot ต่อ 1 ร้าน) หมายเลขพร้อมเพย์เก็บเข้ารหัส AES-256
-      </p>
-
-      {!platformOk && (
-        <p className="page-admin__hint ppv-error">
-          ผู้ดูแลระบบยังไม่ได้ตั้งค่าบริการตรวจสอบ ({!cfg.api_base_configured ? 'URL' : 'API key ของระบบ'}) — ยังเปิดใช้งานไม่ได้
-        </p>
-      )}
-
-      <div className="page-admin__form">
-        {/* 1) Bot + แชทธนาคาร — dev ผูกให้ (อ่านอย่างเดียว) */}
-        <div>
-          <label className="page-admin__label">1. Bot และแชท LINE OA ธนาคาร</label>
-          {hasBot ? (
-            <p className="page-admin__hint">
-              ผู้ดูแลระบบผูกให้แล้ว: <strong>{cfg.bot_name ?? cfg.bot_id}</strong> → <strong>{cfg.source_target_name ?? cfg.source_target_id}</strong>
-            </p>
-          ) : (
-            <p className="page-admin__hint ppv-error">
-              ยังไม่ได้ผูก Bot ให้ร้านนี้ — ติดต่อผู้ดูแลระบบเพื่อผูก LINE Bot และแชทธนาคารที่รับแจ้งเงินเข้า
-            </p>
-          )}
-          <p className="page-admin__hint">
-            ⚠️ การใช้บัญชี LINE ส่วนตัวเป็นบอท (self-bot) อาจขัดต่อข้อกำหนด LINE — แนะนำใช้บัญชีแยกสำหรับร้านโดยเฉพาะ
-          </p>
-        </div>
-
-        <div>
-          <label className="page-admin__label">
-            2. หมายเลขพร้อมเพย์ที่รับเงิน {cfg.promptpay_id_last4 && <span className="page-admin__hint">— บันทึกแล้ว ลงท้าย …{cfg.promptpay_id_last4}</span>}
-          </label>
-          <div className="ppv-range">
-            {ID_TYPES.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setIdType(t.id)}
-                className={`page-admin__btn-sm${idType === t.id ? ' page-admin__btn-active' : ''}`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-          <input
-            className="input-field"
-            inputMode="numeric"
-            autoComplete="off"
-            placeholder={cfg.promptpay_id_last4 ? 'เว้นว่างไว้ถ้าไม่เปลี่ยน' : idTypeMeta.hint}
-            value={ppId}
-            onChange={(e) => setPpId(e.target.value.replace(/\D/g, '').slice(0, 15))}
-          />
-        </div>
-
-        <div>
-          <label className="page-admin__label">เลขบัญชีปลายทาง 4 หลักท้าย (ไม่บังคับ)</label>
-          <input
-            className="input-field"
-            inputMode="numeric"
-            maxLength={4}
-            placeholder="1234"
-            value={last4}
-            onChange={(e) => setLast4(e.target.value.replace(/\D/g, '').slice(0, 4))}
-          />
-        </div>
-
-        <div className="ppv-range">
-          <button type="button" className="page-admin__btn-sm page-admin__btn-active" disabled={saving} onClick={() => void save()}>
-            {saving ? 'กำลังบันทึก…' : 'บันทึก'}
-          </button>
-          <button
-            type="button"
-            className="page-admin__btn-sm"
-            disabled={saving || (!cfg.enabled && !hasBot)}
-            onClick={() => void save({ enabled: !cfg.enabled })}
-          >
-            {cfg.enabled ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
-          </button>
-          {(cfg.promptpay_id_last4 || cfg.enabled) && (
-            <button type="button" className="page-admin__btn-sm page-admin__btn-danger" onClick={() => void clearMine()}>ล้างการตั้งค่า</button>
-          )}
-          <span className="page-admin__hint">
-            สถานะ: {cfg.ready ? '🟢 พร้อมใช้งาน' : cfg.enabled ? '🟡 ตั้งค่าไม่ครบ / บริการยังไม่พร้อม' : '⚪ ปิดอยู่'}
-          </span>
-        </div>
-      </div>
-    </div>
+    <PromptPayVerifyForm
+      cfg={cfg}
+      idType={idType}
+      ppId={ppId}
+      last4={last4}
+      saving={saving}
+      onIdType={setIdType}
+      onPpId={setPpId}
+      onLast4={setLast4}
+      onSave={() => void save()}
+      onToggle={() => void save({ enabled: !cfg.enabled })}
+      onClear={() => void clearMine()}
+    />
   );
 }
